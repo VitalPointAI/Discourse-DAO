@@ -11,9 +11,6 @@ import TableRow from '@material-ui/core/TableRow'
 import Paper from '@material-ui/core/Paper'
 import TablePagination from '@material-ui/core/TablePagination'
 import Button from '@material-ui/core/Button'
-import ButtonGroup from '@material-ui/core/ButtonGroup'
-import ThumbUpAlt from '@material-ui/icons/ThumbUpAlt'
-import ThumbDownAlt from '@material-ui/icons/ThumbDownAlt'
 
 import Big from 'big.js'
 
@@ -84,7 +81,7 @@ export default function ProposalsTable(props) {
 
     async function handleSponsorAction(proposalIdentifier) {
        await window.contract.sponsorProposal({
-            proposalIdentifier: proposalIdentifier,
+            pI: proposalIdentifier,
             proposalDeposit: proposalDeposit,
             depositToken: depositToken
             }, process.env.DEFAULT_GAS_VALUE)
@@ -95,7 +92,7 @@ export default function ProposalsTable(props) {
 
     async function handleCancelAction(proposalIdentifier) {
        await window.contract.cancelProposal({
-            proposalIdentifier: proposalIdentifier
+            pI: proposalIdentifier
             }, process.env.DEFAULT_GAS_VALUE)
             await handleProposalEventChange()
             await handleEscrowBalanceChanges()
@@ -105,7 +102,7 @@ export default function ProposalsTable(props) {
 
     async function getStatus(proposalIdentifier) {
         // flags [sponsored, processed, didPass, cancelled, whitelist, guildkick, member]
-        let flags = await window.contract.getProposalFlags({proposalIdentifier: proposalIdentifier})
+        let flags = await window.contract.getProposalFlags({pI: proposalIdentifier})
         console.log('flags ', flags)
         let status = ''
         if(!flags[0] && !flags[1] && !flags[2] && !flags[3]) {
@@ -131,7 +128,7 @@ export default function ProposalsTable(props) {
 
     async function getProposalType(proposalIdentifier) {
         // flags [sponsored, processed, didPass, cancelled, whitelist, guildkick, member]
-        let flags = await window.contract.getProposalFlags({proposalIdentifier: proposalIdentifier})
+        let flags = await window.contract.getProposalFlags({pI: proposalIdentifier})
         let status = ''
         if(flags[4]) {
         status = 'Whitelist'

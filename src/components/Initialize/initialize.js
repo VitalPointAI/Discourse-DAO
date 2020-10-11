@@ -85,11 +85,11 @@ export default function Initialize(props) {
         let finished = await window.contract.init({
                             _approvedTokens: arrayApprovedTokens,
                             periodDuration: parseInt(periodDuration),
-                            votingPeriodLength: votingPeriodLength,
-                            gracePeriodLength: gracePeriodLength,
-                            proposalDeposit: proposalDeposit,
-                            dilutionBound: dilutionBound,
-                            processingReward: processingReward,
+                            votingPeriodLength: parseInt(votingPeriodLength),
+                            gracePeriodLength: parseInt(gracePeriodLength),
+                            proposalDeposit: parseInt(proposalDeposit),
+                            dilutionBound: parseInt(dilutionBound),
+                            processingReward: parseInt(processingReward),
                             minSharePrice: parseInt(minSharePrice)
                         }, process.env.DEFAULT_GAS_VALUE)
         setFinish(finished)

@@ -58,7 +58,6 @@ export default function MemberProposal(props) {
   const [applicant, setApplicant] = useState(props.accountId)
   const [shares, setShares] = useState('')
   const [tribute, setTribute] = useState('')
-  const [proposalIdentifier, setProposalIdentifier] = useState('')
   
 
   const classes = useStyles()
@@ -88,30 +87,22 @@ console.log('depositToken ', depositToken)
     setTribute(event.target.value.toString());
   };
 
-  async function generateId() {
-    let buf = Math.random([0, 999999999]);
-    let b64 = btoa(buf);
-    console.log('b64', b64)
-    return b64.toString()
-  }
-
   const onSubmit = async (values) => {
     event.preventDefault()
-    let id = await generateId()
-    console.log('id sub ', id.substr(0,12))
     setFinished(false)
     
     let finished = await window.contract.submitProposal({
-                    proposalIdentifier: id.substr(0,12),
-                    applicant: applicant,
-                    sharesRequested: shares,
-                    lootRequested: '0',
-                    tributeOffered: tribute,
-                    tributeToken: depositToken,
-                    paymentRequested: '0',
-                    paymentToken: depositToken
-                    }, process.env.DEFAULT_GAS_VALUE)
+                    a: applicant,
+                    sR: parseInt(shares),
+                    lR: parseInt('0'),
+                    tO: parseInt(tribute),
+                    tT: depositToken,
+                    pR: parseInt('0'),
+                    pT: depositToken
+                    })
+                  
     let changed = await handleProposalEventChange()
+    
     if(finished && changed) {
       setFinished(true)
       setOpen(false)

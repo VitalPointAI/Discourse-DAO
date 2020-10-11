@@ -43,6 +43,8 @@ export default function VotingListTable(props) {
     const [noVotes, setNoVotes] = useState('0')
     const [disabled, setDisabled] = useState(false)
     const [rowsPerPage, setRowsPerPage] = useState(5)
+    const [isVotingPeriod, setIsVotingPeriod] = useState(false)
+    const [isGracePeriod, setIsGracePeriod] = useState(false)
     const classes = useStyles()
     
     const { allProposalsList, 
@@ -82,7 +84,7 @@ export default function VotingListTable(props) {
         await window.contract.submitVote({
             proposalIdentifier: proposalIdentifier,
             vote: 'yes'
-            }, BOATLOAD_OF_GAS)
+            }, process.env.DEFAULT_GAS_VALUE)
         await getUserVote(proposalIdentifier)
         await handleProposalEventChange()
            
@@ -92,7 +94,7 @@ export default function VotingListTable(props) {
         await window.contract.submitVote({
             proposalIdentifier: proposalIdentifier,
             vote: 'no'
-            }, BOATLOAD_OF_GAS)
+            }, process.env.DEFAULT_GAS_VALUE)
             await getUserVote(proposalIdentifier)
             await handleProposalEventChange()
     }
@@ -101,14 +103,14 @@ export default function VotingListTable(props) {
         await window.contract.submitVote({
             proposalIdentifier: proposalIdentifier,
             vote: 'abstain'
-            }, BOATLOAD_OF_GAS)
+            }, process.env.DEFAULT_GAS_VALUE)
             await getUserVote(proposalIdentifier)
             await handleProposalEventChange()
     }
 
     async function getStatus(proposalIdentifier) {
         // flags [sponsored, processed, didPass, cancelled, whitelist, guildkick, member]
-        let flags = await window.contract.getProposalFlags({proposalIdentifier: proposalIdentifier})
+        let flags = await window.contract.getProposalFlags({pI: proposalIdentifier})
         console.log('flags ', flags)
         let status = ''
         if(!flags[0] && !flags[1] && !flags[2] && !flags[3]) {
@@ -133,12 +135,12 @@ export default function VotingListTable(props) {
     }
 
     async function getProposalVotes(proposalIdentifier) {
-        return await window.contract.getProposalVotes({proposalIdentifier: proposalIdentifier})
+        return await window.contract.getProposalVotes({pI: proposalIdentifier})
     }
 
     async function getProposalType(proposalIdentifier) {
         // flags [sponsored, processed, didPass, cancelled, whitelist, guildkick, member]
-        let flags = await window.contract.getProposalFlags({proposalIdentifier: proposalIdentifier})
+        let flags = await window.contract.getProposalFlags({pI: proposalIdentifier})
         console.log('flags ', flags)
         let status = ''
         if(flags[4]) {
@@ -157,15 +159,15 @@ export default function VotingListTable(props) {
     }
 
     async function getVotingPeriod(proposalIdentifier) {
-        return await window.contract.isVotingPeriod({proposalIdentifier: proposalIdentifier})
+        return await window.contract.isVotingPeriod({pI: proposalIdentifier})
      }
 
      async function getGracePeriod(proposalIdentifier) {
-        return await window.contract.isGracePeriod({proposalIdentifier: proposalIdentifier})
+        return await window.contract.isGracePeriod({pI: proposalIdentifier})
      }
 
      async function getUserVote(proposalIdentifier) {
-        let result = await window.contract.getMemberProposalVote({memberAddress: accountId, proposalIdentifier: proposalIdentifier})
+        let result = await window.contract.getMemberProposalVote({memberAddress: accountId, pI: proposalIdentifier})
         console.log('user vote result ', result)
         if(result == 'no vote yet') {
             setDisabled(false)
@@ -188,23 +190,27 @@ export default function VotingListTable(props) {
         console.log('proposal list here now ', requests)
         for(let i = 0; i < requests.length; i++) {
             status = await getStatus(requests[i][0].requestId)
+            
             votingPeriod = await getVotingPeriod(requests[i][0].requestId)
-            console.log('voting period', votingPeriod)
+            setIsVotingPeriod(votingPeriod)
+            console.log('voting period', isVotingPeriod)
             votingPeriod ? setDisabled(false) : setDisabled(true)
+           
             gracePeriod = await getGracePeriod(requests[i][0].requestId)
+            setIsGracePeriod(gracePeriod)
+            console.log('grace period', isGracePeriod)
+
             if(status != 'Submitted' && status != 'Cancelled' && memberStatus) {
                 userVote = await getUserVote(requests[i][0].requestId)
             }
             
-            console.log('disabled ', disabled)
             proposalType = await getProposalType(requests[i][0].requestId)
-            console.log('proposal type ', proposalType)
+            
             voteCounts = await getProposalVotes(requests[i][0].requestId)
             setNoVotes(voteCounts[0].no)
             setYesVotes(voteCounts[0].yes)
-            console.log('voteCounts ', voteCounts)
-            console.log('status ', status)
-            if(status == 'Sponsored' && status != 'Processed' && status !='Passed' && status != 'Not Passed' && status != 'Cancelled' && (votingPeriod || gracePeriod)){
+            
+            if(status == 'Sponsored' && status != 'Processed' && status !='Passed' && status != 'Not Passed' && status != 'Cancelled'){
                 updated.push({requestId: requests[i][0].requestId,
                     blockIndex: requests[i][0].blockIndex,
                     applicant: requests[i][0].applicant,
@@ -213,8 +219,8 @@ export default function VotingListTable(props) {
                     tribute: requests[i][0].tribute,
                     status: status, 
                     proposalType: proposalType,
-                    votingPeriod: votingPeriod,
-                    gracePeriod: gracePeriod,
+                    votingPeriod: isVotingPeriod,
+                    gracePeriod: isGracePeriod,
                     yesVotes: yesVotes,
                     noVotes: noVotes
                 })
@@ -245,7 +251,7 @@ export default function VotingListTable(props) {
             </TableRow>
             </TableHead>
             <TableBody>
-          
+          {proposalList.length == 0 ? <TableRow><TableCell className={classes.cell} align="center"><div className={classes.cellText}>Nothing ready for voting yet</div></TableCell></TableRow> : null}
             {(rowsPerPage > 0 
                 ? proposalList.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage) 
                 : proposalList
@@ -266,8 +272,8 @@ export default function VotingListTable(props) {
                     <TableCell className={classes.cell} align="center"><div className={classes.cellText}>{row.requestId}</div></TableCell>
                     <TableCell className={classes.cell} align="center"><div className={classes.cellText}>Yes:{yesVotes} | No:{noVotes}</div></TableCell>
                     <TableCell className={classes.cell} align="center"><div className={classes.cellText}>
-                    {row.status == 'Sponsored' && row.votingPeriod == true ? <ButtonGroup disabled={disabled} orientation="vertical" aria-label="vertical contained primary button group"><Button variant="contained" color="primary" startIcon={<ThumbUpAlt />} onClick={(e) => handleYesVotingAction(row.requestId, e)}>Yes</Button> <Button variant="contained"  color="secondary" startIcon={<ThumbDownAlt />} onClick={(e) => handleNoVotingAction(row.requestId, e)}>No</Button> <Button variant="contained"  onClick={(e) => handleAbstainVotingAction(row.requestId, e)}>Abstain</Button></ButtonGroup> : null }
-                    {row.status == 'Sponsored' && row.gracePeriod == true ? 'Grace' : null } 
+                    {row.status == 'Sponsored' && row.votingPeriod && !row.gracePeriod ? <ButtonGroup disabled={disabled} orientation="vertical" aria-label="vertical contained primary button group"><Button variant="contained" color="primary" startIcon={<ThumbUpAlt />} onClick={(e) => handleYesVotingAction(row.requestId, e)}>Yes</Button> <Button variant="contained"  color="secondary" startIcon={<ThumbDownAlt />} onClick={(e) => handleNoVotingAction(row.requestId, e)}>No</Button> <Button variant="contained"  onClick={(e) => handleAbstainVotingAction(row.requestId, e)}>Abstain</Button></ButtonGroup> : null }
+                    {row.status == 'Sponsored' && row.gracePeriod && !row.votingPeriod ? 'Grace' : null } 
                     </div></TableCell>
                        </TableRow>
                     

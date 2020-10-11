@@ -1,12 +1,9 @@
 import React, { useState } from 'react'
 import { makeStyles } from '@material-ui/core/styles'
-import Transfer from '../Transfer/transfer'
 import FundingProposal from '../FundingProposal/fundingProposal'
 import WhiteListProposal from '../WhiteListProposal/whitelistProposal'
 import GuildKickProposal from '../GuildKickProposal/guildKickProposal'
 import MemberProposal from '../MemberProposal/memberProposal'
-import Mint from '../Mint/Mint'
-import Burn from '../Burn/burn'
 
 // Material UI Components
 import Accordion from '@material-ui/core/Accordion'
@@ -39,33 +36,21 @@ const useStyles = makeStyles((theme) => ({
 
 export default function ActionSelector(props) {
   const classes = useStyles();
-  const [transferClicked, setTransferClicked] = useState(false)
   const [memberProposalClicked, setMemberProposalClicked] = useState(false)
   const [fundingProposalClicked, setFundingProposalClicked] = useState(false)
   const [whiteListClicked, setWhiteListClicked] = useState(false)
   const [guildKickClicked, setGuildKickClicked] = useState(false)
   const [expanded, setExpanded] = useState(false)
   
-  const { currentSupply, 
-    handleSupplyChange, 
-    handleOwnerChange, 
-    handleTransferEventChange,
+  const { 
     handleProposalEventChange,
     handleGuildBalanceChanges,
     handleEscrowBalanceChanges,
     handleTabValueState,
-    tokenOwner,
     accountId,
     depositToken,
     tokenName,
-    minSharePrice,
-    accountBalance } = props
-
-  const handleTransferClick = () => {
-    handleExpanded()
-    handleTabValueState('1')
-    setTransferClicked(true)
-  };
+    minSharePrice } = props
 
   const handleFundingProposalClick = () => {
     handleExpanded()
@@ -99,10 +84,6 @@ export default function ActionSelector(props) {
     setGuildKickClicked(property)
   }
 
-  function handleTransferClickState(property) {
-    setTransferClicked(property)
-  }
-
   function handleFundingProposalClickState(property) {
     setFundingProposalClicked(property)
   }
@@ -127,9 +108,7 @@ export default function ActionSelector(props) {
           <Typography className={classes.heading}>Proposals</Typography>
         </AccordionSummary>
         <AccordionDetails>
-          {tokenOwner==accountId 
-            ?
-            ( <List component="nav" aria-label="main mailbox folders">
+            <List component="nav" aria-label="main mailbox folders">
               <ListItem button onClick={handleMemberProposalClick}>
               <ListItemIcon><LabelImportantIcon color="primary" /></ListItemIcon>
               <ListItemText primary="Member Proposal" />
@@ -150,31 +129,7 @@ export default function ActionSelector(props) {
             <ListItemIcon><FireplaceIcon color='secondary' /></ListItemIcon>
             <ListItemText primary="Trade" />
           </ListItem>
-            </List>)
-          : 
-          ( <List component="nav" aria-label="main mailbox folders">
-              <ListItem button onClick={handleMemberProposalClick}>
-              <ListItemIcon><LabelImportantIcon color="primary" /></ListItemIcon>
-              <ListItemText primary="Member Proposal" />
-            </ListItem>
-            <ListItem button onClick={handleFundingProposalClick}>
-              <ListItemIcon><TransferWithinAStationTwoToneIcon color="secondary" /></ListItemIcon>
-              <ListItemText primary="Request Funding" />
-            </ListItem>
-            <ListItem button onClick={handleWhiteListClick}>
-              <ListItemIcon><AddCircleIcon color='action' /></ListItemIcon>
-              <ListItemText primary="Whitelist Token" />
-            </ListItem>
-            <ListItem button onClick={handleGuildKickClick}>
-              <ListItemIcon><FireplaceIcon color='secondary' /></ListItemIcon>
-              <ListItemText primary="Remove Member" />
-            </ListItem>
-            <ListItem button onClick={handleGuildKickClick}>
-            <ListItemIcon><FireplaceIcon color='secondary' /></ListItemIcon>
-            <ListItemText primary="Trade" />
-          </ListItem>
-            </List>)
-        }
+            </List>
         </AccordionDetails>
       </Accordion>
 

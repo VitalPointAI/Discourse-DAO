@@ -1,8 +1,9 @@
 //@nearBindgen
 
-const DEBUG = true;
+const DEBUG = false;
 
-import { Context, u128, PersistentDeque, logging } from "near-sdk-as";
+import { Context, u128, PersistentDeque, PersistentVector, logging } from "near-sdk-as";
+import { memberAddressByDelegatekey } from "./dao-models";
 
 // ----------------------------------------------------------------------------
 // this file contains models representing events emitted by the contract
@@ -24,12 +25,12 @@ export class SummonCompleteEvent {
   summoner: string;
   tokens: Array<string>;
   summoningTime: u64;
-  periodDuration: u64;
-  votingPeriodLength: u128;
-  gracePeriodLength: u128;
-  proposalDeposit: u128;
-  dilutionBound: u128;
-  processingReward: u128;
+  periodDuration: i32;
+  votingPeriodLength: i32;
+  gracePeriodLength: i32;
+  proposalDeposit: i32;
+  dilutionBound: i32;
+  processingReward: i32;
 }
 
 // setup a queue for summon complete events
@@ -49,7 +50,7 @@ export const summonCompleteEvents = new PersistentDeque<SummonCompleteEvent>("sc
  * @param dilutionBound
  * @param processingReward
  */
-export function summonCompleteEvent(summoner: string, tokens: Array<string>, summoningTime: u64, periodDuration: u64, votingPeriodLength:u128, gracePeriodLength: u128, proposalDeposit: u128, dilutionBound: u128, processingReward: u128): void {
+export function summonCompleteEvent(summoner: string, tokens: Array<string>, summoningTime: u64, periodDuration: i32, votingPeriodLength:i32, gracePeriodLength: i32, proposalDeposit: i32, dilutionBound: i32, processingReward: i32): void {
   DEBUG ? logging.log("[call] summonCompleteEvent(" + summoner + ", " + tokens.toString() + ", " + summoningTime.toString() + ", " + periodDuration.toString() + ")") : false;
   const summon = new SummonCompleteEvent();
   summon.summoner = summoner;
@@ -75,61 +76,85 @@ export function summonCompleteEvent(summoner: string, tokens: Array<string>, sum
  */
 
 @nearBindgen
-export class SubmitProposalEvent {
-  proposalIdentifier: string;
-  applicant: string;
-  sharesRequested: u128;
-  lootRequested: u128;
-  tributeOffered: u128;
-  tributeToken: string;
-  paymentRequested: u128;
-  paymentToken: string;
-  flags: Array<bool>;
-  proposalId: u64;
-  delegateKey: string;
-  memberAddress: string;
-  proposalSubmission: u64;
+export class SPE {
+  pI: i32;
+  a: string;
+  sR: i32;
+  lR: i32;
+  tO: i32;
+  tT: string;
+  pR: i32;
+  pT: string;
+  f: Array<bool>;
+  dK: string;
+  mA: string;
+  pS: u64;
+
+  constructor(
+    pI: i32,
+    a: string,
+    sR: i32,
+    lR: i32,
+    tO: i32,
+    tT: string,
+    pR: i32,
+    pT: string,
+    f: Array<bool>,
+    dK: string,
+    mA: string,
+    pS: u64
+  ){
+    this.pI = pI
+    this.a = a
+    this.sR = sR
+    this.lR = lR
+    this.tO = tO
+    this.tT = tT
+    this.pR = pR
+    this.pT = pT
+    this.f = f
+    this.dK = dK
+    this.mA = mA
+    this.pS = pS
+  }
 }
 
 // setup a queue for summon complete events
-export const submitProposalEvents = new PersistentDeque<SubmitProposalEvent>("sup");
+export const submitProposalEvents = new PersistentDeque<SPE>("pe");
 
 /**
  * This function records submit proposal events since NEAR doesn't currently support
  * an event model on-chain
  *
- * @param proposalIdentifier
- * @param applicant
- * @param sharesRequested
- * @param lootRequested
- * @param tributeOffered
- * @param tributeToken
- * @param paymentRequested
- * @param paymentToken
- * @param details
- * @param flags
- * @param proposalId
- * @param delegateKey
- * @param memberAddress
- * @param proposalSubmission
+ * @param proposalIdentifier //pI
+ * @param applicant // a
+ * @param sharesRequested //sR
+ * @param lootRequested //lR
+ * @param tributeOffered //tO
+ * @param tributeToken //tT
+ * @param paymentRequested //pR
+ * @param paymentToken //pT
+ * @param flags / f
+ * @param delegateKey //dK
+ * @param memberAddress //mA
+ * @param proposalSubmission //pS
  */
-export function submitProposalEvent(proposalIdentifier: string, applicant: string, sharesRequested: u128, lootRequested: u128, tributeOffered: u128, tributeToken: string, paymentRequested: u128, paymentToken: string, flags: Array<bool>, proposalId: u64, delegateKey: string, memberAddress: string, proposalSubmission: u64): void {
-  DEBUG ? logging.log("[call] submitProposalEvent(" + applicant + ", " + sharesRequested.toString() + ", " + lootRequested.toString() + ", " + tributeOffered.toString() + ")") : false;
-  const proposal = new SubmitProposalEvent();
-  proposal.proposalIdentifier = proposalIdentifier;
-  proposal.applicant = applicant;
-  proposal.sharesRequested = sharesRequested;
-  proposal.lootRequested = lootRequested;
-  proposal.tributeOffered = tributeOffered;
-  proposal.tributeToken = tributeToken;
-  proposal.paymentRequested = paymentRequested;
-  proposal.paymentToken = paymentToken;
-  proposal.flags = flags;
-  proposal.proposalId = proposalId;
-  proposal.delegateKey = delegateKey;
-  proposal.memberAddress = memberAddress;
-  proposal.proposalSubmission = proposalSubmission;
-  submitProposalEvents.pushFront(proposal);
+export function sPE(pI: i32, a: string, sR: i32, lR: i32, tO: i32, tT: string, pR: i32, pT: string, f: Array<bool>, dK: string, mA: string, pS: u64): void {
+  DEBUG ? logging.log("[call] submitProposalEvent(" + a + ", " + sR.toString() + ", " + lR.toString() + ", " + tO.toString() + ")") : false;
+  submitProposalEvents.pushFront(new SPE(
+    pI,
+    a,
+    sR,
+    lR,
+    tO,
+    tT,
+    pR,
+    pT,
+    f,
+    dK,
+    mA,
+    pS
+  ));
 }
 
 /**
@@ -145,9 +170,8 @@ export function submitProposalEvent(proposalIdentifier: string, applicant: strin
 export class SponsorProposalEvent {
   delegateKey: string;
   memberAddress: string;
-  proposalId: u64;
-  proposalIndex: u64;
-  startingPeriod: u128;
+  proposalId: i32;
+  startingPeriod: i32;
 }
 
 // setup a queue for summon complete events
@@ -160,16 +184,14 @@ export const sponsorProposalEvents = new PersistentDeque<SponsorProposalEvent>("
  * @param delegateKey
  * @param memberAddress
  * @param proposalId
- * @param proposalIndex
  * @param startingPeriod
  */
-export function sponsorProposalEvent(delegateKey: string, memberAddress: string, proposalId: u64, proposalIndex: u64, startingPeriod: u128): void {
-  DEBUG ? logging.log("[call] sponsorProposalEvent(" + delegateKey + ", " + memberAddress + ", " + proposalId.toString() + ", " + proposalIndex.toString() + ")") : false;
+export function sponsorProposalEvent(delegateKey: string, memberAddress: string, proposalId: i32, startingPeriod: i32): void {
+  DEBUG ? logging.log("[call] sponsorProposalEvent(" + delegateKey + ", " + memberAddress + ", " + proposalId.toString() + ", " + ")") : false;
   const spProposal = new SponsorProposalEvent();
   spProposal.delegateKey = delegateKey;
   spProposal.memberAddress = memberAddress;
   spProposal.proposalId = proposalId;
-  spProposal.proposalIndex = proposalIndex;
   spProposal.startingPeriod = startingPeriod;
   sponsorProposalEvents.pushFront(spProposal);
 }
@@ -185,8 +207,7 @@ export function sponsorProposalEvent(delegateKey: string, memberAddress: string,
 
 @nearBindgen
 export class SubmitVoteEvent {
-  proposalId: u64;
-  proposalIndex: u64;
+  proposalIdentifier: i32;
   delegateKey: string;
   memberAddress: string;
   vote: string;
@@ -200,16 +221,14 @@ export const submitVoteEvents = new PersistentDeque<SubmitVoteEvent>("sv");
  * an event model on-chain
  *
  * @param proposalId
- * @param proposalIndex
  * @param delegateKey
  * @param memberAddress
  * @param vote
  */
-export function submitVoteEvent(proposalId: u64, proposalIndex: u64, delegateKey: string, memberAddress: string, vote: string): void {
-  DEBUG ? logging.log("[call] submitVoteEvent(" + proposalId.toString() + ", " + proposalIndex.toString() + ", " + delegateKey + ", " + memberAddress + ")") : false;
+export function submitVoteEvent(proposalIdentifier: i32, delegateKey: string, memberAddress: string, vote: string): void {
+  DEBUG ? logging.log("[call] submitVoteEvent(" + proposalIdentifier.toString() + ", " + ", " + delegateKey + ", " + memberAddress + ")") : false;
   const vote1 = new SubmitVoteEvent();
-  vote1.proposalId = proposalIndex;
-  vote1.proposalIndex = proposalIndex;
+  vote1.proposalIdentifier = proposalIdentifier;
   vote1.delegateKey = delegateKey;
   vote1.memberAddress = memberAddress;
   vote1.vote = vote;
@@ -227,8 +246,7 @@ export function submitVoteEvent(proposalId: u64, proposalIndex: u64, delegateKey
 
 @nearBindgen
 export class ProcessProposalEvent {
-  proposalIndex: u64;
-  proposalId: u64;
+  proposalIndex: i32;
   didPass: bool;
 }
 
@@ -240,14 +258,12 @@ export const processProposalEvents = new PersistentDeque<ProcessProposalEvent>("
  * an event model on-chain
  *
  * @param proposalIndex
- * @param proposalId
  * @param didPass
  */
-export function processProposalEvent(proposalIndex: u64, proposalId: u64, didPass: bool): void {
-  DEBUG ? logging.log("[call] processProposalEvent(" + proposalIndex.toString() + ", " + proposalId.toString() + ", " + didPass.toString() + "") : false;
+export function processProposalEvent(proposalIndex: i32, didPass: bool): void {
+  DEBUG ? logging.log("[call] processProposalEvent(" + proposalIndex.toString() + ", " + ", " + didPass.toString() + "") : false;
   const proposal = new ProcessProposalEvent();
   proposal.proposalIndex = proposalIndex;
-  proposal.proposalId = proposalId;
   proposal.didPass = didPass;
   processProposalEvents.pushFront(proposal);
 }
@@ -263,8 +279,8 @@ export function processProposalEvent(proposalIndex: u64, proposalId: u64, didPas
 
 @nearBindgen
 export class ProcessWhiteListProposalEvent {
-  proposalIndex: u64;
-  proposalId: u64;
+  proposalIndex: i32;
+  proposalId: i32;
   didPass: bool;
 }
 
@@ -279,7 +295,7 @@ export const processWhiteListProposalEvents = new PersistentDeque<ProcessWhiteLi
  * @param proposalId
  * @param didPass
  */
-export function processWhiteListProposalEvent(proposalIndex: u64, proposalId: u64, didPass: bool): void {
+export function processWhiteListProposalEvent(proposalIndex: i32, proposalId: i32, didPass: bool): void {
   DEBUG ? logging.log("[call] processWhiteListProposalEvent(" + proposalIndex.toString() + ", " + proposalId.toString() + ", " + didPass.toString() + "") : false;
   const proposal = new ProcessWhiteListProposalEvent();
   proposal.proposalIndex = proposalIndex;
@@ -299,8 +315,7 @@ export function processWhiteListProposalEvent(proposalIndex: u64, proposalId: u6
 
 @nearBindgen
 export class ProcessGuildKickProposalEvent {
-  proposalIndex: u64;
-  proposalId: u64;
+  proposalIndex: i32;
   didPass: bool;
 }
 
@@ -315,11 +330,10 @@ export const processGuildKickProposalEvents = new PersistentDeque<ProcessGuildKi
  * @param proposalId
  * @param didPass
  */
-export function processGuildKickProposalEvent(proposalIndex: u64, proposalId: u64, didPass: bool): void {
-  DEBUG ? logging.log("[call] processGuildKickProposalEvent(" + proposalIndex.toString() + ", " + proposalId.toString() + ", " + didPass.toString() + "") : false;
+export function processGuildKickProposalEvent(proposalIndex: i32, didPass: bool): void {
+  DEBUG ? logging.log("[call] processGuildKickProposalEvent(" + proposalIndex.toString() + ", " + ", " + didPass.toString() + "") : false;
   const proposal = new ProcessGuildKickProposalEvent();
   proposal.proposalIndex = proposalIndex;
-  proposal.proposalId = proposalId;
   proposal.didPass = didPass;
   processGuildKickProposalEvents.pushFront(proposal);
 }
@@ -336,8 +350,8 @@ export function processGuildKickProposalEvent(proposalIndex: u64, proposalId: u6
 @nearBindgen
 export class RageQuitEvent {
   memberAddress: string;
-  sharesToBurn: u128;
-  lootToBurn: u128;
+  sharesToBurn: i32;
+  lootToBurn: i32;
 }
 
 // setup a queue for summon complete events
@@ -351,7 +365,7 @@ export const rageQuitEvents = new PersistentDeque<RageQuitEvent>("rq");
  * @param sharesToBurn
  * @param lootToBurn
  */
-export function rageQuitEvent(memberAddress: string, sharesToBurn: u128, lootToBurn: u128): void {
+export function rageQuitEvent(memberAddress: string, sharesToBurn: i32, lootToBurn: i32): void {
   DEBUG ? logging.log("[call] rageQuitEvent(" + memberAddress + ", " + sharesToBurn.toString() + ", " + lootToBurn.toString() + "") : false;
   const rage = new RageQuitEvent();
   rage.memberAddress = memberAddress;
@@ -404,7 +418,7 @@ export function tokensCollectedEvent(token: string, amountToCollect: u128): void
 
 @nearBindgen
 export class CancelProposalEvent {
-  proposalId: u64;
+  proposalId: i32;
   applicantAddress: string;
 }
 
@@ -418,7 +432,7 @@ export const cancelProposalEvents = new PersistentDeque<CancelProposalEvent>("cp
  * @param proposalId
  * @param applicantAddress
  */
-export function cancelProposalEvent(proposalId: u64, applicantAddress: string): void {
+export function cancelProposalEvent(proposalId: i32, applicantAddress: string): void {
   DEBUG ? logging.log("[call] cancelProposalEvent(" + proposalId.toString() + ", " + applicantAddress + "") : false;
   const proposal = new CancelProposalEvent();
   proposal.proposalId = proposalId;
@@ -472,7 +486,7 @@ export function updateDelegateKeyEvent(memberAddress: string, newDelegateKey: st
 export class WithdrawlEvent {
   memberAddress: string;
   token: string;
-  amount: u128;
+  amount: i32;
 }
 
 // setup a queue for withdrawl events
@@ -486,7 +500,7 @@ export const withdrawlEvents = new PersistentDeque<WithdrawlEvent>("w");
  * @param token
  * @param amount
  */
-export function withdrawlEvent(memberAddress: string, token: string, amount: u128): void {
+export function withdrawlEvent(memberAddress: string, token: string, amount: i32): void {
   DEBUG ? logging.log("[call] withdrawlEvent(" + memberAddress + ", " + token + ", " + amount.toString() + "") : false;
   const withdrawl = new WithdrawlEvent();
   withdrawl.memberAddress = memberAddress;

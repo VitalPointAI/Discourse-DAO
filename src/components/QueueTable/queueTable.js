@@ -78,17 +78,17 @@ export default function QueueTable(props) {
 
     async function handleProcessAction(proposalIdentifier) {
        let passed = await window.contract.processProposal({
-            proposalIdentifier: proposalIdentifier
+            pI: proposalIdentifier
             }, process.env.DEFAULT_GAS_VALUE)
-        if(passed){
-            await window.contract.proposalPassed({
-                proposalIdentifier: proposalIdentifier
-                }, process.env.DEFAULT_GAS_VALUE)
-        } else {
-            await window.contract.proposalFailed({
-                proposalIdentifier: proposalIdentifier
-                }, process.env.DEFAULT_GAS_VALUE)
-        }
+        //if(passed){
+        //    await window.contract.proposalPassed({
+        //        proposalIdentifier: proposalIdentifier
+        //        }, process.env.DEFAULT_GAS_VALUE)
+        //} else {
+        //    await window.contract.proposalFailed({
+        //        proposalIdentifier: proposalIdentifier
+        //        }, process.env.DEFAULT_GAS_VALUE)
+        //}
             await handleProposalEventChange()
             await handleGuildBalanceChanges()
             await handleEscrowBalanceChanges()
@@ -97,7 +97,7 @@ export default function QueueTable(props) {
 
     async function getStatus(proposalIdentifier) {
         // flags [sponsored, processed, didPass, cancelled, whitelist, guildkick, member]
-        let flags = await window.contract.getProposalFlags({proposalIdentifier: proposalIdentifier})
+        let flags = await window.contract.getProposalFlags({pI: proposalIdentifier})
         console.log('flags ', flags)
         let status = ''
         if(!flags[0] && !flags[1] && !flags[2] && !flags[3]) {
@@ -123,7 +123,7 @@ export default function QueueTable(props) {
 
     async function getProposalType(proposalIdentifier) {
         // flags [sponsored, processed, didPass, cancelled, whitelist, guildkick, member]
-        let flags = await window.contract.getProposalFlags({proposalIdentifier: proposalIdentifier})
+        let flags = await window.contract.getProposalFlags({pI: proposalIdentifier})
         console.log('flags ', flags)
         let status = ''
         if(flags[4]) {
@@ -142,11 +142,11 @@ export default function QueueTable(props) {
     }
 
     async function getVotingPeriod(proposalIdentifier) {
-        return await window.contract.isVotingPeriod({proposalIdentifier: proposalIdentifier})
+        return await window.contract.isVotingPeriod({pI: proposalIdentifier})
      }
 
      async function getGracePeriod(proposalIdentifier) {
-        return await window.contract.isGracePeriod({proposalIdentifier: proposalIdentifier})
+        return await window.contract.isGracePeriod({pI: proposalIdentifier})
      }
 
     async function resolveStatus(requests) {

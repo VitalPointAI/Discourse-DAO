@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import LogoutButton from '../../components/common/LogoutButton/logoutButton'
-import TransferOwnership from '../FundingProposal/fundingProposal'
 import ActionSelector from '../ActionSelector/actionSelector'
-import TransferList from '../TransferList/transferList'
+import ProposalList from '../ProposalList/proposalList'
 import BalanceChart from '../BalanceGraphs/balanceGraph'
 
 // Material UI imports
@@ -52,24 +51,9 @@ export default function TokenData(props) {
     const classes = useStyles()
     
 
-    const { 
-      tokenSymbol, 
-      precision, 
-      initialSupply, 
-      currentSupply,
-      
-      tokenOwner, 
-     
-      transferEvents,
-      mintEvents,
-      burnEvents,
-      ownerTransferEvents,
+    const {      
       tabValue,
-      handleOwnerChange,
-      handleTransferEventChange,
       handleTabValueState, 
-      handleSupplyChange,
-
       accountId,
       memberStatus,
       depositToken,
@@ -139,15 +123,11 @@ export default function TokenData(props) {
             <Grid container direction="row" justify="space-evenly" style={{marginBottom:10, marginTop: 10}}>
                 <Grid item xs={10} sm={6} md={4} lg={3} xl={3} >
                 Current Period: {currentPeriod} | {accountId}: {memberStatus ? 'member' : 'not member'} | {depositToken} Balance: {userBalance}
-                     <ActionSelector currentSupply={currentSupply} 
-                        handleOwnerChange={handleOwnerChange} 
-                        handleSupplyChange={handleSupplyChange} 
-                        handleTransferEventChange={handleTransferEventChange}
+                     <ActionSelector 
                         handleProposalEventChange={handleProposalEventChange}
                         handleEscrowBalanceChanges={handleEscrowBalanceChanges}
                         handleGuildBalanceChanges={handleGuildBalanceChanges}
                         handleTabValueState={handleTabValueState}
-                        tokenOwner={tokenOwner}
                         accountId={accountId}
                         tokenName={tokenName}
                         depositToken={depositToken}
@@ -169,18 +149,11 @@ export default function TokenData(props) {
         
             <Grid container>
               <Grid item xs={12} sm={12} md={12} lg={12} xl={12} >
-                <TransferList 
-                  transferEvents={transferEvents} 
-                  mintEvents={mintEvents}
-                  burnEvents={burnEvents}
-                  ownerTransferEvents={ownerTransferEvents}
-                  tokenOwner={tokenOwner} 
+                <ProposalList 
                   accountId={accountId} 
-                  initialSupply={initialSupply} 
                   guildBalance={guildBalance}
                   handleTabValueState={handleTabValueState}
                   tabValue={tabValue}
-
                   handleProposalEventChange={handleProposalEventChange}
                   handleGuildBalanceChanges={handleGuildBalanceChanges}
                   handleEscrowBalanceChanges={handleEscrowBalanceChanges}
@@ -197,9 +170,9 @@ export default function TokenData(props) {
 
        <Grid container className={classes.root} spacing={1}>
         <Grid item xs={6} sm={6} md={6} lg={6} xl={6}>
-          <Typography variant="button" display="block">Total Supply</Typography>
+          
          
-            <Chip variant="outlined" icon={<AccountBalanceWalletTwoToneIcon />} label={currentSupply} style={{marginRight: 5}}/>
+          
     
         </Grid>
 

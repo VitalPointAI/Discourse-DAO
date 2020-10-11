@@ -72,12 +72,11 @@ export default function FundingProposal(props) {
   const [activeStep, setActiveStep] = useState(0);
 
   function getSteps() {
-    
     return ['Funding Information', 'Tribute Information', 'Review Proposal'];
   } 
-  const steps = getSteps();
-  const id = generateId()
 
+  const steps = getSteps();
+  
   const handleNext = () => {
     console.log(errors)
     setActiveStep((prevActiveStep) => prevActiveStep + 1);
@@ -118,14 +117,7 @@ export default function FundingProposal(props) {
 
   const handleTributeTypeChange = (event) => {
     setTributeType(event.target.value);
-    console.log(tributeType)
   };
-
-  function generateId() {
-    let buf = Math.random([0, 999999999]);
-    let b64 = btoa(buf);
-    return b64.toString()
-  }
 
   
   const isFundingEmpty = funding.length > 0
@@ -134,20 +126,18 @@ export default function FundingProposal(props) {
 
   const onSubmit = async (values) => {
     event.preventDefault()
-    setProposalIdentifier(id)
     console.log(errors)
     setFinished(false)
  
     let finished = await window.contract.submitProposal({
-                    proposalIdentifier: id.substr(0,12),
-                    applicant: accountId,
-                    sharesRequested: '0',
-                    lootRequested: funding,
-                    tributeOffered: tributeOffer,
-                    tributeToken: tributeType,
-                    paymentRequested: '0',
-                    paymentToken: depositToken,
-                    }, process.env.DEFAULT_GAS_VALUE)
+                    a: accountId,
+                    sR: parseInt('0'),
+                    lR: parseInt(funding),
+                    tO: parseInt(tributeOffer),
+                    tT: tributeType,
+                    pR: parseInt('0'),
+                    pT: depositToken,
+                    }, process.env.DEFAULT_GAS_VALUE)                    
     let changed = await handleProposalEventChange()
     await handleGuildBalanceChanges()
     await handleEscrowBalanceChanges()
@@ -247,7 +237,7 @@ function getStepContent(step) {
       return (
        
           <Card className={classes.card}>
-            <CardHeader title={id}/>
+            <CardHeader title="Funding Proposal"/>
             <CardContent>
   
               <Typography variant="subtitle2" gutterBottom>Applicant:  <Chip label={applicant} variant="outlined"/></Typography>
