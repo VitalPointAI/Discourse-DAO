@@ -1,0 +1,66 @@
+Before - After
+247612476655386 - 275243041767645
+300000000000000
+
+21610828908456
+
+25000000000000
+
+
+243042850032853
+221875559042014
+
+
+membership proposals
+247614509999979 - 266039310333543
+
+358970226156 -    118590061078576
+
+187614509999979 - 206039310333543
+
+Sponsor Proposal - 130656126878523
+
+
+Funding Proposal (vitalpointai.testnet)
+188630371650791 - 207681119831705
+
+194825900764149 - 215246477127078 (guildleder funding proposal)
+
+guildleader.testnet submits member proposal: 206038691588424
+vitalpointai.testnet sponsors: 218105285640275
+vitalpointai.testnet votes: 29352828178908
+vitalpointai.testnet process: 31724744405292
+
+caller - function - used gas at start - used gas at end
+guildleader.testnet - submitProposal -   358952633172 - 206090001065511
+vitalpointai.testnet - sponsorProposal - 273877186542 - 218156124711023
+vitalpointai.testnet - submitVote -      202967778444 -  29401572885588
+vitalpointai.testnet - processProposal - 179369373783 -  31775583476040
+guildleader.testnet - submitProposal -   358952633172 -  fails - exceeds prepaid gas (separately - costs: 215246477127078)
+
+transfer_from (vpc contract)
+235203514527 - 21846032422983 = 21610828908456
+               
+inc_allowance (dao)
+150751616526 - 17178419405754 = 17027667789228
+
+transfer_from (dao)
+185771684913 - 26400123400347 = 26 214 351 715 434
+
+                                                300000000000000
+guildleader.testnet - submitProposal (member) - 19965643342536      19965808072536      19965801786786      19961672676720      20074904868867      20074887962367
+vitalpointai.testnet- sponsorProposal -         27651953053530      27652117783530      27652111497780      27650631103260      27407022301542      26250882567363
+vitalpointai.testnet- processProposal -         118315710494739     114674314386474     113111261503134     113109781108614     114771892934922     113601429557952
+guildleader.testnet - submitProposal (member)                                           102075318988827     102071492654748     103507037776407     103507020869907
+vitalpointai.testnet- sponsorProposal                                                   196973843746485     196972363351965     >200 dies           dies
+vitalpointai.testnet- processProposal                                                   died                
+
+guildleader.testnet - submitProposal (member proposal ) -  20074887962367
+vitalpointai.testnet- sponsorProposal -                    26250882567363
+vitalpointai.testnet- processProposal -                   113601429557952
+guildleader.testnet - submitProposal (member proposal)    103507020869907
+vitalpointai.testnet- sponsorProposal                     dies
+vitalpointai.testnet- processProposal                                                     
+
+storage
+96495   96943   97247

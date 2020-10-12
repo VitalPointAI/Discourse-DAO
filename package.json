@@ -8,7 +8,6 @@
     "build:contract:debug": "asb --target debug",
     "build:web": "parcel build src/index.html --public-url ./",
     "build:rs": "cd rust && cargo build --target wasm32-unknown-unknown --release",
-    "postbuild": "cp contract/target/wasm32-unknown-unknown/release/rust_counter_tutorial.wasm ./rust-out/main.wasm",
     "dev:deploy:contract": "near dev-deploy",
     "deploy:contract": "near deploy",
     "deploy:pages": "gh-pages -d dist/",

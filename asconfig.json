@@ -4,6 +4,7 @@
     "options": {
       "binaryFile": "out/main.wasm",
       "textFile": "out/main.wat",
-      "sourceMap": true
+      "sourceMap": true,
+      "debug": true
     }
 }
