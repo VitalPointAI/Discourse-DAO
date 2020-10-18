@@ -1,6 +1,6 @@
 {
   "name": "dao",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "license": "UNLICENSED",
   "scripts": {
     "build": "npm run build:contract && npm run build:web",
