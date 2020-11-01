@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react'
+import RageQuit from '../RageQuit/rageQuit'
+import MemberProposalDetails from '../MemberProposal/memberProposalDetails'
 
 // Material UI Components
 import { makeStyles } from '@material-ui/core/styles'
@@ -38,38 +40,34 @@ const BOATLOAD_OF_GAS = Big(3).times(10 ** 14).toFixed()
 
 export default function VotingListTable(props) {
     const [page, setPage] = useState(0)
-    const [proposalList, setProposalList] = useState([])
-    const [yesVotes, setYesVotes] = useState('0')
-    const [noVotes, setNoVotes] = useState('0')
-    const [disabled, setDisabled] = useState(false)
+    const [voted, setVoted] = useState()
     const [rowsPerPage, setRowsPerPage] = useState(5)
-    const [isVotingPeriod, setIsVotingPeriod] = useState(false)
-    const [isGracePeriod, setIsGracePeriod] = useState(false)
+    const [rageQuitClicked, setRageQuitClicked] = useState(false)
+    const [proposalDetailsClicked, setProposalDetailsClicked] = useState(false)
+    const [memberProposalId, setMemberProposalId] = useState('')
+    const [expanded, setExpanded] = useState(false)
     const classes = useStyles()
     
-    const { allProposalsList, 
-        eventCount, 
-        matches,
-        memberStatus,
-        handleVotingCountChange,
+    const { proposalList, 
+        eventCount,
+        currentPeriod,
+        periodDuration,
         handleProposalEventChange,
-        handleEscrowBalanceChanges,
-        handleGuildBalanceChanges
+        accountId,
+        handleTabValueState
     } = props
 
     useEffect(() => {
         async function fetchData() {
-            let newList = await resolveStatus(allProposalsList)
-            handleVotingCountChange(newList.length)
-            setProposalList(newList)
+          
         }
-        if(allProposalsList.length > 0){
+     
         fetchData()
           .then((res) => {
             console.log('res', res)
           })
-        }
-    },[allProposalsList])
+        
+    },[proposalList])
 
     const handleChangePage = (event, newPage) => {
         setPage(newPage);
@@ -80,154 +78,45 @@ export default function VotingListTable(props) {
         setPage(0);
     };
 
+    const handleRageQuitClick = () => {
+        handleExpanded()
+        setRageQuitClicked(true)
+    };
+
+    function handleRageQuitClickState(property) {
+        setRageQuitClicked(property)
+    }
+
+    function handleExpanded() {
+        setExpanded(!expanded)
+    }
+
+    const handleProposalDetailsClick = async (id) => {
+            handleExpanded()
+            handleTabValueState('2')
+            setMemberProposalId(id)
+            setProposalDetailsClicked(true)
+    };
+
+    function handleProposalDetailsClickState(property) {
+        setProposalDetailsClicked(property)
+    }
+
     async function handleYesVotingAction(proposalIdentifier) {
         await window.contract.submitVote({
-            proposalIdentifier: proposalIdentifier,
+            pI: proposalIdentifier,
             vote: 'yes'
             }, process.env.DEFAULT_GAS_VALUE)
-        await getUserVote(proposalIdentifier)
         await handleProposalEventChange()
            
     }
 
     async function handleNoVotingAction(proposalIdentifier) {
         await window.contract.submitVote({
-            proposalIdentifier: proposalIdentifier,
+            pI: proposalIdentifier,
             vote: 'no'
             }, process.env.DEFAULT_GAS_VALUE)
-            await getUserVote(proposalIdentifier)
             await handleProposalEventChange()
-    }
-
-    async function handleAbstainVotingAction(proposalIdentifier) {
-        await window.contract.submitVote({
-            proposalIdentifier: proposalIdentifier,
-            vote: 'abstain'
-            }, process.env.DEFAULT_GAS_VALUE)
-            await getUserVote(proposalIdentifier)
-            await handleProposalEventChange()
-    }
-
-    async function getStatus(proposalIdentifier) {
-        // flags [sponsored, processed, didPass, cancelled, whitelist, guildkick, member]
-        let flags = await window.contract.getProposalFlags({pI: proposalIdentifier})
-        console.log('flags ', flags)
-        let status = ''
-        if(!flags[0] && !flags[1] && !flags[2] && !flags[3]) {
-        status = 'Submitted'
-        }
-        if(flags[0] && !flags[1] && !flags[2] && !flags[3]) {
-        status = 'Sponsored'
-        }
-        if(flags[0] && flags[1] && !flags[2] && !flags[3]) {
-        status = 'Processed'
-        }
-        if(flags[0] && flags[1] && flags[2] && !flags[3]) {
-        status = 'Passed'
-        }
-        if(flags[0] && flags[1] && !flags[2] && !flags[3]) {
-        status = 'Not Passed'
-        }
-        if(flags[3]) {
-        status = 'Cancelled'
-        }
-        return status
-    }
-
-    async function getProposalVotes(proposalIdentifier) {
-        return await window.contract.getProposalVotes({pI: proposalIdentifier})
-    }
-
-    async function getProposalType(proposalIdentifier) {
-        // flags [sponsored, processed, didPass, cancelled, whitelist, guildkick, member]
-        let flags = await window.contract.getProposalFlags({pI: proposalIdentifier})
-        console.log('flags ', flags)
-        let status = ''
-        if(flags[4]) {
-        status = 'Whitelist'
-        }
-        if(flags[5]) {
-        status = 'GuildKick'
-        }
-        if(flags[6]) {
-        status = 'Member'
-        }
-        if(!flags[4] && !flags[5] && !flags[6]) {
-        status = 'Funding'
-        }
-        return status
-    }
-
-    async function getVotingPeriod(proposalIdentifier) {
-        return await window.contract.isVotingPeriod({pI: proposalIdentifier})
-     }
-
-     async function getGracePeriod(proposalIdentifier) {
-        return await window.contract.isGracePeriod({pI: proposalIdentifier})
-     }
-
-     async function getUserVote(proposalIdentifier) {
-        let result = await window.contract.getMemberProposalVote({memberAddress: accountId, pI: proposalIdentifier})
-        console.log('user vote result ', result)
-        if(result == 'no vote yet') {
-            setDisabled(false)
-            return false
-        } else {
-            setDisabled(true)
-            return true
-        }
-     }
-    
-
-    async function resolveStatus(requests) {
-        let status
-        let votingPeriod 
-        let gracePeriod
-        let userVote
-        let proposalType
-        let updated = []
-        let voteCounts
-        console.log('proposal list here now ', requests)
-        for(let i = 0; i < requests.length; i++) {
-            status = await getStatus(requests[i][0].requestId)
-            
-            votingPeriod = await getVotingPeriod(requests[i][0].requestId)
-            setIsVotingPeriod(votingPeriod)
-            console.log('voting period', isVotingPeriod)
-            votingPeriod ? setDisabled(false) : setDisabled(true)
-           
-            gracePeriod = await getGracePeriod(requests[i][0].requestId)
-            setIsGracePeriod(gracePeriod)
-            console.log('grace period', isGracePeriod)
-
-            if(status != 'Submitted' && status != 'Cancelled' && memberStatus) {
-                userVote = await getUserVote(requests[i][0].requestId)
-            }
-            
-            proposalType = await getProposalType(requests[i][0].requestId)
-            
-            voteCounts = await getProposalVotes(requests[i][0].requestId)
-            setNoVotes(voteCounts[0].no)
-            setYesVotes(voteCounts[0].yes)
-            
-            if(status == 'Sponsored' && status != 'Processed' && status !='Passed' && status != 'Not Passed' && status != 'Cancelled'){
-                updated.push({requestId: requests[i][0].requestId,
-                    blockIndex: requests[i][0].blockIndex,
-                    applicant: requests[i][0].applicant,
-                    shares: requests[i][0].shares,
-                    loot: requests[i][0].loot,
-                    tribute: requests[i][0].tribute,
-                    status: status, 
-                    proposalType: proposalType,
-                    votingPeriod: isVotingPeriod,
-                    gracePeriod: isGracePeriod,
-                    yesVotes: yesVotes,
-                    noVotes: noVotes
-                })
-                }
-                console.log('frl ', updated)
-            }
-            return updated
     }
 
     return (
@@ -244,42 +133,69 @@ export default function VotingListTable(props) {
                 <TableCell className={classes.cell} align="center">Shares</TableCell>
                 <TableCell className={classes.cell} align="center">Loot</TableCell>
                 <TableCell className={classes.cell} align="center">Tribute</TableCell>
-                <TableCell className={classes.cell} align="center">Identifier</TableCell>
+                <TableCell className={classes.cell} align="center"></TableCell>
                 <TableCell className={classes.cell} align="center">Vote Counts</TableCell>
                 <TableCell className={classes.cell} align="center"></TableCell>
              
             </TableRow>
             </TableHead>
             <TableBody>
-          {proposalList.length == 0 ? <TableRow><TableCell className={classes.cell} align="center"><div className={classes.cellText}>Nothing ready for voting yet</div></TableCell></TableRow> : null}
+          {proposalList.length == 0 ? <TableRow ><TableCell colSpan={7} className={classes.cell} align="center"><div className={classes.cellText}>Nothing ready for voting yet</div></TableCell></TableRow> : null}
             {(rowsPerPage > 0 
                 ? proposalList.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage) 
                 : proposalList
                 ).map((row) => (
-                   
-                    <TableRow key={row.requestId}>
                   
-                    <TableCell className={classes.cell} align="center"><div className={classes.cellText}>{row.proposalType}</div></TableCell>
+                    <TableRow key={row[0].requestId}>
+                   {console.log('row ', row[0].voted)}
+                    <TableCell className={classes.cell} align="center"><div className={classes.cellText}>{row[0].proposalType}</div></TableCell>
                    
-                    <TableCell className={classes.cell} align="center"><div className={classes.cellText}>{row.applicant}</div></TableCell>
+                    <TableCell className={classes.cell} align="center"><div className={classes.cellText}>{row[0].applicant}</div></TableCell>
                     <TableCell className={classes.cell} align="center"><div className={classes.cellText}>
-                    {row.proposalType=='Member' ? row.shares : '0'}
+                    {row[0].proposalType=='Member' ? row[0].shares : '0'}
                     </div></TableCell>
                     <TableCell className={classes.cell} align="center"><div className={classes.cellText}>
-                    {row.proposalType!='Member' ? row.loot : '0'}
+                    {row[0].proposalType!='Member' ? row[0].loot : '0'}
                     </div></TableCell>
-                    <TableCell className={classes.cell} align="center"><div className={classes.cellText}>{row.tribute}</div></TableCell>
-                    <TableCell className={classes.cell} align="center"><div className={classes.cellText}>{row.requestId}</div></TableCell>
-                    <TableCell className={classes.cell} align="center"><div className={classes.cellText}>Yes:{yesVotes} | No:{noVotes}</div></TableCell>
+                    <TableCell className={classes.cell} align="center"><div className={classes.cellText}>{row[0].tribute}</div></TableCell>
+                    <TableCell className={classes.cell} align="center"><div className={classes.cellText}><Button variant="contained" color="primary" onClick={(e) => handleProposalDetailsClick(row[0].requestId, e)}>Details</Button></div></TableCell>
+                    <TableCell className={classes.cell} align="center"><div className={classes.cellText}>Yes:{row[0].yesVotes} | No:{row[0].noVotes}</div></TableCell>
                     <TableCell className={classes.cell} align="center"><div className={classes.cellText}>
-                    {row.status == 'Sponsored' && row.votingPeriod && !row.gracePeriod ? <ButtonGroup disabled={disabled} orientation="vertical" aria-label="vertical contained primary button group"><Button variant="contained" color="primary" startIcon={<ThumbUpAlt />} onClick={(e) => handleYesVotingAction(row.requestId, e)}>Yes</Button> <Button variant="contained"  color="secondary" startIcon={<ThumbDownAlt />} onClick={(e) => handleNoVotingAction(row.requestId, e)}>No</Button> <Button variant="contained"  onClick={(e) => handleAbstainVotingAction(row.requestId, e)}>Abstain</Button></ButtonGroup> : null }
-                    {row.status == 'Sponsored' && row.gracePeriod && !row.votingPeriod ? 'Grace' : null } 
+                   <div>{row[0].status == 'Sponsored' && !row[0].isVotingPeriod && row[0].isGracePeriod && row[0].voted ? 'Finalizing': null} </div>
+                    {row[0].status == 'Sponsored' && row[0].isVotingPeriod && !row[0].isGracePeriod ? 
+                    <>
+                        <ButtonGroup disabled={row[0].voted} disableElevation={false} orientation="vertical" aria-label="vertical contained primary button group">
+                            <Button variant="contained" color="primary" startIcon={<ThumbUpAlt />} onClick={(e) => handleYesVotingAction(row[0].requestId, e)}>Yes</Button>
+                            <Button variant="contained"  color="secondary" startIcon={<ThumbDownAlt />} onClick={(e) => handleNoVotingAction(row[0].requestId, e)}>No</Button>
+                        </ButtonGroup>
+                        <div className={classes.cellText}>Voting Ends in {((row[0].votingPeriod - currentPeriod)+1) * periodDuration / 60} minutes</div>
+                    </>
+                        : null }
+
+                    {row[0].status == 'Sponsored' && row[0].isGracePeriod && !row[0].isVotingPeriod && row[0].vote != 'yes' ?
+                    <>
+                        <ButtonGroup disabled={false} disableElevation={false} orientation="vertical" aria-label="vertical contained primary button group">
+                            <Button variant="contained"  color="secondary" startIcon={<ThumbDownAlt />} onClick={handleRageQuitClick}>RageQuit</Button>
+                        </ButtonGroup>
+                        <div className={classes.cellText}>RageQuit ends in {((row[0].gracePeriod - currentPeriod)+1) * periodDuration / 60} {(((row[0].gracePeriod - currentPeriod)+1) * periodDuration / 60) > 1 ? 'minutes':'minute'}</div>
+                    </>
+                    : null }
+
                     </div></TableCell>
                        </TableRow>
                     
                 ))}
             </TableBody>
         </Table>
+        {rageQuitClicked ? <RageQuit
+            handleProposalEventChange={handleProposalEventChange}
+            handleRageQuitClickState={handleRageQuitClickState}
+            accountId={accountId}
+            /> : null }
+        {proposalDetailsClicked ? <MemberProposalDetails
+            memberProposalId={memberProposalId}
+            handleProposalDetailsClickState={handleProposalDetailsClickState}  
+            handleTabValueState={handleTabValueState}/> : null }
     </TableContainer>
         <TablePagination
             rowsPerPageOptions={[5, 10, 25]}

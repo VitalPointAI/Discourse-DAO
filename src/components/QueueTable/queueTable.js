@@ -39,33 +39,28 @@ const BOATLOAD_OF_GAS = Big(3).times(10 ** 14).toFixed()
 
 export default function QueueTable(props) {
     const [page, setPage] = useState(0)
-    const [proposalList, setProposalList] = useState([])
     const [rowsPerPage, setRowsPerPage] = useState(5)
     const classes = useStyles()
     
-    const { allProposalsList, 
-        eventCount, 
-        matches,
-        memberStatus,
-        handleQueueCountChange,
+    const { proposalList, 
+        eventCount,
         handleProposalEventChange,
         handleEscrowBalanceChanges,
-        handleGuildBalanceChanges
+        handleGuildBalanceChanges,
+        handleUserBalanceChanges
     } = props
 
     useEffect(() => {
         async function fetchData() {
-            let newList = await resolveStatus(allProposalsList)
-            handleQueueCountChange(newList.length)
-            setProposalList(newList)
+         
         }
-        if(allProposalsList.length > 0){
+       
         fetchData()
           .then((res) => {
             console.log('res', res)
           })
-        }
-    },[allProposalsList])
+
+    },[proposalList])
 
     const handleChangePage = (event, newPage) => {
         setPage(newPage);
@@ -80,105 +75,13 @@ export default function QueueTable(props) {
        let passed = await window.contract.processProposal({
             pI: proposalIdentifier
             }, process.env.DEFAULT_GAS_VALUE)
-        //if(passed){
-        //    await window.contract.proposalPassed({
-        //        proposalIdentifier: proposalIdentifier
-        //        }, process.env.DEFAULT_GAS_VALUE)
-        //} else {
-        //    await window.contract.proposalFailed({
-        //        proposalIdentifier: proposalIdentifier
-        //        }, process.env.DEFAULT_GAS_VALUE)
-        //}
+     
             await handleProposalEventChange()
             await handleGuildBalanceChanges()
             await handleEscrowBalanceChanges()
+            await handleUserBalanceChanges()
            
     };
-
-    async function getStatus(proposalIdentifier) {
-        // flags [sponsored, processed, didPass, cancelled, whitelist, guildkick, member]
-        let flags = await window.contract.getProposalFlags({pI: proposalIdentifier})
-        console.log('flags ', flags)
-        let status = ''
-        if(!flags[0] && !flags[1] && !flags[2] && !flags[3]) {
-        status = 'Submitted'
-        }
-        if(flags[0] && !flags[1] && !flags[2] && !flags[3]) {
-        status = 'Sponsored'
-        }
-        if(flags[0] && flags[1] && !flags[2] && !flags[3]) {
-        status = 'Processed'
-        }
-        if(flags[0] && flags[1] && flags[2] && !flags[3]) {
-        status = 'Passed'
-        }
-        if(flags[0] && flags[1] && !flags[2] && !flags[3]) {
-        status = 'Not Passed'
-        }
-        if(flags[3]) {
-        status = 'Cancelled'
-        }
-        return status
-    }
-
-    async function getProposalType(proposalIdentifier) {
-        // flags [sponsored, processed, didPass, cancelled, whitelist, guildkick, member]
-        let flags = await window.contract.getProposalFlags({pI: proposalIdentifier})
-        console.log('flags ', flags)
-        let status = ''
-        if(flags[4]) {
-        status = 'Whitelist'
-        }
-        if(flags[5]) {
-        status = 'GuildKick'
-        }
-        if(flags[6]) {
-        status = 'Member'
-        }
-        if(!flags[4] && !flags[5] && !flags[6]) {
-        status = 'Funding'
-        }
-        return status
-    }
-
-    async function getVotingPeriod(proposalIdentifier) {
-        return await window.contract.isVotingPeriod({pI: proposalIdentifier})
-     }
-
-     async function getGracePeriod(proposalIdentifier) {
-        return await window.contract.isGracePeriod({pI: proposalIdentifier})
-     }
-
-    async function resolveStatus(requests) {
-        let status
-        let votingPeriod
-        let gracePeriod
-        let userVote
-        let proposalType
-        let updated = []
-        console.log('proposal list here now ', requests)
-        for(let i = 0; i < requests.length; i++) {
-            status = await getStatus(requests[i][0].requestId)
-            votingPeriod = await getVotingPeriod(requests[i][0].requestId)
-            gracePeriod = await getGracePeriod(requests[i][0].requestId)
-            proposalType = await getProposalType(requests[i][0].requestId)
-            console.log('status ', status)
-            if(status == 'Sponsored' && status != 'Processed' && status !='Passed' && status != 'Not Passed' && status != 'Cancelled' && !votingPeriod && !gracePeriod){
-                updated.push({requestId: requests[i][0].requestId,
-                    blockIndex: requests[i][0].blockIndex,
-                    applicant: requests[i][0].applicant,
-                    shares: requests[i][0].shares,
-                    loot: requests[i][0].loot,
-                    tribute: requests[i][0].tribute,
-                    status: status, 
-                    votingPeriod: votingPeriod, 
-                    gracePeriod: gracePeriod, 
-                    proposalType: proposalType})
-                }
-                console.log('frl ', updated)
-            }
-            return updated
-    }
 
     return (
         <>
@@ -206,21 +109,21 @@ export default function QueueTable(props) {
                 : proposalList
                 ).map((row) => (
                    
-                    <TableRow key={row.requestId}>
-                  
-                    <TableCell className={classes.cell} align="center"><div className={classes.cellText}>{row.proposalType}</div></TableCell>
+                    <TableRow key={row[0].requestId}>
+                  {console.log('queue row ', row)}
+                    <TableCell className={classes.cell} align="center"><div className={classes.cellText}>{row[0].proposalType}</div></TableCell>
                    
-                    <TableCell className={classes.cell} align="center"><div className={classes.cellText}>{row.applicant}</div></TableCell>
+                    <TableCell className={classes.cell} align="center"><div className={classes.cellText}>{row[0].applicant}</div></TableCell>
                     <TableCell className={classes.cell} align="center"><div className={classes.cellText}>
-                    {row.proposalType=='Member' ? row.shares : '0'}
+                    {row[0].proposalType=='Member' ? row[0].shares : '0'}
                     </div></TableCell>
                     <TableCell className={classes.cell} align="center"><div className={classes.cellText}>
-                    {row.proposalType!='Member' ? row.loot : '0'}
+                    {row[0].proposalType!='Member' ? row[0].loot : '0'}
                     </div></TableCell>
-                    <TableCell className={classes.cell} align="center"><div className={classes.cellText}>{row.tribute}</div></TableCell>
-                    <TableCell className={classes.cell} align="center"><div className={classes.cellText}>{row.requestId}</div></TableCell>
+                    <TableCell className={classes.cell} align="center"><div className={classes.cellText}>{row[0].tribute}</div></TableCell>
+                    <TableCell className={classes.cell} align="center"><div className={classes.cellText}>{row[0].requestId}</div></TableCell>
                     <TableCell className={classes.cell} align="center"><div className={classes.cellText}>
-                      {accountId != row.proposer && row.status == 'Sponsored' && row.votingPeriod == false && row.gracePeriod == false ? <Button variant="contained" color="primary" onClick={() => handleProcessAction(row.requestId)}>Process</Button> : null}
+                      {accountId != row[0].proposer && row[0].status == 'Sponsored' && row[0].isVotingPeriod == false && row[0].isGracePeriod == false ? <Button variant="contained" color="primary" onClick={() => handleProcessAction(row[0].requestId)}>Process</Button> : null}
                     </div></TableCell>
                        </TableRow>
                     

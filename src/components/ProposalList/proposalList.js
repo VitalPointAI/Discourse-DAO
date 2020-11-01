@@ -23,11 +23,12 @@ const useStyles = makeStyles({
 });
 
 export default function ProposalList(props) {
-  const[loaded, setLoaded] = useState(false)
-  const[proposalCount, setProposalCount] = useState(0)
-  const[votingCount, setVotingCount] = useState(0)
-  const[queueCount, setQueueCount] = useState(0)
-  const[processCount, setProcessCount] = useState(0)
+  const [loaded, setLoaded] = useState(false)
+  const [proposalList, setProposalList] = useState([])
+  const [votingList, setVotingList] = useState([])
+  const [queueList, setQueueList] = useState([])
+  const [processedList, setProcessedList] = useState([])
+  const [userVote, setUserVote] = useState()
 
   const classes = useStyles()
   const theme = useTheme()
@@ -39,36 +40,275 @@ export default function ProposalList(props) {
     handleProposalEventChange,
     handleGuildBalanceChanges,
     handleEscrowBalanceChanges,
+    handleUserBalanceChanges,
     proposalEvents,
     memberStatus,
     depositToken,
-    proposalDeposit
+    tributeToken,
+    tributeOffer,
+    processingReward,
+    proposalDeposit,
+    currentPeriod,
+    periodDuration,
+    proposalComments
   } = props
 
-  const proposalTabLabel = 'Proposals ('+ proposalCount + ')'
-  const votingTabLabel = 'Voting (' + votingCount + ')'
-  const queueLabel = 'Queued (' + queueCount + ')'
-  const processedLabel = 'Processed (' + processCount +')'
+  useEffect(() => {
+    async function fetchData() {
+      let i = 0
+      while (i < proposalEvents.length) {
+          console.log('i', i)
+          console.log('proposal events before ', proposalEvents[i])
+          let result = await getUserVote(proposalEvents[i].pI)
+          proposalEvents[i].vote = result
+          console.log('result ', result)
+          proposalEvents[i].voted = result == 'yes' || result == 'no'? true : false
+          console.log(' prposal event after ', proposalEvents[i])
+          i++
+      }
+        let newLists = await resolveStatus(proposalEvents)
+        setProposalList(newLists.allProposals)
+        setVotingList(newLists.votingProposals)
+        setQueueList(newLists.queueProposals)
+        setProcessedList(newLists.processedProposals)
+    }
+    if(proposalEvents.length > 0){
+    fetchData()
+      .then((res) => {
+        console.log('res', res)
+      })
+    }
+},[proposalEvents, currentPeriod])
+
+    function getStatus(flags) {
+      // flags [sponsored, processed, didPass, cancelled, whitelist, guildkick, member]
+     
+      console.log('flags ', flags)
+      let status = ''
+      if(!flags[0] && !flags[1] && !flags[2] && !flags[3]) {
+      status = 'Submitted'
+      }
+      if(flags[0] && !flags[1] && !flags[2] && !flags[3]) {
+      status = 'Sponsored'
+      }
+      if(flags[0] && flags[1] && !flags[2] && !flags[3]) {
+      status = 'Processed'
+      }
+      if(flags[0] && flags[1] && flags[2] && !flags[3]) {
+      status = 'Passed'
+      }
+      if(flags[0] && flags[1] && !flags[2] && !flags[3]) {
+      status = 'Not Passed'
+      }
+      if(flags[3]) {
+      status = 'Cancelled'
+      }
+      return status
+    }
+
+    function getProposalType(flags) {
+      // flags [sponsored, processed, didPass, cancelled, whitelist, guildkick, member]
+      let type = ''
+      if(flags[4]) {
+      type = 'Whitelist'
+      }
+      if(flags[5]) {
+      type = 'GuildKick'
+      }
+      if(flags[6]) {
+      type = 'Member'
+      }
+      if(!flags[4] && !flags[5] && !flags[6]) {
+      type = 'Funding'
+      }
+      return type
+    }
+
+    function getVotingPeriod(startPeriod, votePeriod) {
+      let votingPeriod = currentPeriod >= startPeriod && currentPeriod <= votePeriod
+      console.log('voting period calc ', votingPeriod)
+      return votingPeriod
+    }
+
+    function getGracePeriod(votePeriod, grPeriod) {
+        let gracePeriod = currentPeriod > votePeriod && currentPeriod <= grPeriod
+        return gracePeriod
+
+    }
+
+    async function getUserVote(proposalIdentifier) {
+      let result = await window.contract.getMemberProposalVote({memberAddress: accountId, pI: proposalIdentifier})
+      return result
+    }
+
+    function makeTime(timestamp) {
+      // Create a new JavaScript Date object based on the timestamp
+      // multiplied by 1000 so that the argument is in milliseconds, not seconds.
+      var date = new Date(timestamp / 1000000);
+      console.log('date ', date)
+      var day = date.getDate()
+      var year = date.getFullYear()
+      var month = date.getMonth() + 1
+      console.log('date ?', date.getDate())
+      // Hours part from the timestamp
+      var hours = date.getHours();
+      // Minutes part from the timestamp
+      var minutes = "0" + date.getMinutes();
+      // Seconds part from the timestamp
+      var seconds = "0" + date.getSeconds();
+      // Will display time in 10:30:23 format
+      var formattedTime = hours + ':' + minutes.substr(-2) + ':' + seconds.substr(-2);
+      var formatDate = month + '-' + day + '-' + year
+      return formatDate
+      console.log('format date ', formatDate)
+      console.log(formattedTime);
+    }
+
+    async function resolveStatus(requests) {
+      
+      let status
+      let proposalType
+      let allProposals = []
+      let votingProposals = []
+      let queueProposals = []
+      let processedProposals = []
+     
+      console.log('proposal list here now ', requests)
+     
+      if (requests.length > 0) {
+        requests.map(async(fr, i) => {
+          console.log('fr ', fr)
+          status = getStatus(fr.f)
+          proposalType = getProposalType(fr.f)
+          let isVotingPeriod = getVotingPeriod(fr.sP, fr.vP)
+          let isGracePeriod = getGracePeriod(fr.vP, fr.gP)
+          let disabled
+          let isDisabled = isVotingPeriod ? disabled = false : disabled = true       
+
+          if(status != 'Sponsored' && status != 'Processed' && status !='Passed' && status != 'Not Passed' && status != 'Cancelled'){
+            allProposals.push([{
+              blockTimeStamp: fr.pS,
+              date: makeTime(fr.pS),
+              applicant: fr.a, 
+              proposer: fr.dK, 
+              requestId: parseInt(fr.pI), 
+              shares: fr.sR, 
+              loot: fr.lR, 
+              tribute: fr.tO, 
+              flags: fr.f,
+              yesVotes: fr.yV,
+              noVotes: fr.nV,
+              votingPeriod: parseInt(fr.vP),
+              gracePeriod: parseInt(fr.gP),
+              status: status,
+              startingPeriod: parseInt(fr.sP),
+              proposalType: proposalType,
+              isGracePeriod: isGracePeriod,
+              isVotingPeriod: isVotingPeriod,
+              disabled: isDisabled,
+              voted: fr.voted,
+              vote: fr.vote
+            }])
+          }
+
+          if(status == 'Sponsored' && status != 'Processed' && status !='Passed' && status != 'Not Passed' && status != 'Cancelled' && (isVotingPeriod==true || isGracePeriod==true)){
+            votingProposals.push([{
+              blockTimeStamp: fr.pS,
+              date: makeTime(fr.pS), 
+              applicant: fr.a, 
+              proposer: fr.dK, 
+              requestId: parseInt(fr.pI), 
+              shares: fr.sR, 
+              loot: fr.lR, 
+              tribute: fr.tO, 
+              flags: fr.f,
+              yesVotes: fr.yV,
+              noVotes: fr.nV,
+              votingPeriod: parseInt(fr.vP),
+              gracePeriod: parseInt(fr.gP),
+              status: status,
+              startingPeriod: parseInt(fr.sP),
+              proposalType: proposalType,
+              isGracePeriod: isGracePeriod,
+              isVotingPeriod: isVotingPeriod,
+              disabled: isDisabled,
+              voted: fr.voted,
+              vote: fr.vote
+            }])
+          }
+
+          if(status == 'Sponsored' && status != 'Processed' && status !='Passed' && status != 'Not Passed' && status != 'Cancelled' && currentPeriod > fr.sP && isVotingPeriod == false && isGracePeriod == false){
+            queueProposals.push([{
+              blockTimeStamp: fr.pS,
+              date: makeTime(fr.pS),
+              applicant: fr.a, 
+              proposer: fr.dK, 
+              requestId: parseInt(fr.pI), 
+              shares: fr.sR, 
+              loot: fr.lR, 
+              tribute: fr.tO, 
+              flags: fr.f,
+              yesVotes: fr.yV,
+              noVotes: fr.nV,
+              votingPeriod: parseInt(fr.vP),
+              gracePeriod: parseInt(fr.gP),
+              status: status,
+              startingPeriod: parseInt(fr.sP),
+              proposalType: proposalType,
+              isGracePeriod: isGracePeriod,
+              isVotingPeriod: isVotingPeriod,
+              disabled: isDisabled,
+              voted: fr.voted,
+              vote: fr.vote
+            }])
+          }
+
+          if(status == 'Processed' || status != 'Cancelled' && (status =='Passed' || status == 'Not Passed')){
+            processedProposals.push([{
+              blockTimeStamp: fr.pS,
+              date: makeTime(fr.pS),
+              applicant: fr.a, 
+              proposer: fr.dK, 
+              requestId: parseInt(fr.pI), 
+              shares: fr.sR, 
+              loot: fr.lR, 
+              tribute: fr.tO, 
+              flags: fr.f,
+              yesVotes: fr.yV,
+              noVotes: fr.nV,
+              votingPeriod: parseInt(fr.vP),
+              gracePeriod: parseInt(fr.gP),
+              status: status,
+              startingPeriod: parseInt(fr.sP),
+              proposalType: proposalType,
+              isGracePeriod: isGracePeriod,
+              isVotingPeriod: isVotingPeriod,
+              disabled: isDisabled,
+              voted: fr.voted,
+              vote: fr.vote
+            }])
+          }
+
+        }) 
+      }
+      let propObject = {
+        allProposals: allProposals,
+        votingProposals: votingProposals,
+        queueProposals: queueProposals,
+        processedProposals: processedProposals
+      }
+      console.log('prop object ', propObject)
+      return propObject
+    }
+
+  const proposalTabLabel = 'Proposals ('+ proposalList.length + ')'
+  const votingTabLabel = 'Voting (' + votingList.length + ')'
+  const queueLabel = 'Queued (' + queueList.length + ')'
+  const processedLabel = 'Processed (' + processedList.length +')'
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
   };
-
-  function handleProposalCountChange(newCount) {
-    setProposalCount(newCount)
-  }
-
-  function handleVotingCountChange(newCount) {
-    setVotingCount(newCount)
-  }
-
-  function handleProcessCountChange(newCount) {
-    setProcessCount(newCount)
-  }
-
-  function handleQueueCountChange(newCount) {
-    setQueueCount(newCount)
-  }
 
   const handleChangeRowsPerPage = (event) => {
       setRowsPerPage(parseInt(event.target.value, 10));
@@ -79,16 +319,6 @@ export default function ProposalList(props) {
       handleTabValueState(newValue);
   };
 
-  let allProposalsList = []
-
-  if (proposalEvents.length > 0) {
-    proposalEvents.map((fr, i) => {
-          
-            allProposalsList.push([{blockIndex: fr.pS, applicant: fr.a, proposer: fr.dK, requestId: parseInt(fr.pI), shares: fr.sR, loot: fr.lR, tribute: fr.tO}])      
-
-      })
-    
-  }
     
   return (
     <>
@@ -109,61 +339,82 @@ export default function ProposalList(props) {
             </TabList>
         }
     </AppBar>
-      <TabPanel value="1">{(allProposalsList.length > 0 ? <ProposalsTable 
-        allProposalsList={allProposalsList} 
+      <TabPanel value="1">{(proposalList.length > 0 ? <ProposalsTable 
+        proposalList={proposalList} 
         loaded={loaded} 
-        eventCount={allProposalsList.length} 
+        eventCount={proposalList.length} 
         matches={matches} 
         accountId={accountId} 
         memberStatus={memberStatus}
         depositToken={depositToken}
+        tributeToken={tributeToken}
+        tributeOffer={tributeOffer}
+        processingReward={processingReward}
         proposalDeposit={proposalDeposit}
-        handleProposalCountChange={handleProposalCountChange}
+        currentPeriod={currentPeriod}
+        proposalComments={proposalComments}
+        handleTabValueState={handleTabValueState}
         handleProposalEventChange={handleProposalEventChange}
         handleGuildBalanceChanges={handleGuildBalanceChanges}
         handleEscrowBalanceChanges={handleEscrowBalanceChanges}
+        handleUserBalanceChanges={handleUserBalanceChanges}
         /> : 'No Proposals')}</TabPanel>
 
-      <TabPanel value="2">{(allProposalsList.length > 0 ? <VotingListTable 
-        allProposalsList={allProposalsList} 
-        eventCount={allProposalsList.length}  
+      <TabPanel value="2">{(votingList.length > 0 ? <VotingListTable 
+        proposalList={votingList} 
+        eventCount={votingList.length}  
         matches={matches} 
         accountId={accountId} 
         memberStatus={memberStatus}
         depositToken={depositToken}
+        tributeToken={tributeToken}
+        tributeOffer={tributeOffer}
+        processingReward={processingReward}
         proposalDeposit={proposalDeposit}
-        handleVotingCountChange={handleVotingCountChange}
+        currentPeriod={currentPeriod}
+        periodDuration={periodDuration}
+        handleTabValueState={handleTabValueState}
         handleProposalEventChange={handleProposalEventChange}
         handleGuildBalanceChanges={handleGuildBalanceChanges}
         handleEscrowBalanceChanges={handleEscrowBalanceChanges}
+        handleUserBalanceChanges={handleUserBalanceChanges}
         /> : <div style={{marginTop: 10, marginBottom: 10}}>No Proposals Ready for Voting</div>)}</TabPanel>
 
-      <TabPanel value="3">{(allProposalsList.length > 0 ? <QueueTable 
-        allProposalsList={allProposalsList} 
-        eventCount={allProposalsList.length} 
+      <TabPanel value="3">{(queueList.length > 0 ? <QueueTable 
+        proposalList={queueList} 
+        eventCount={queueList.length} 
         matches={matches} 
         accountId={accountId}
         memberStatus={memberStatus}
         depositToken={depositToken}
+        tributeToken={tributeToken}
+        tributeOffer={tributeOffer}
+        processingReward={processingReward}
         proposalDeposit={proposalDeposit}
-        handleQueueCountChange={handleQueueCountChange}
+        currentPeriod={currentPeriod}
         handleProposalEventChange={handleProposalEventChange}
         handleGuildBalanceChanges={handleGuildBalanceChanges}
         handleEscrowBalanceChanges={handleEscrowBalanceChanges}
+        handleUserBalanceChanges={handleUserBalanceChanges}
         /> : <div style={{marginTop: 10, marginBottom: 10}}>No Guild Kick Proposals</div>)}</TabPanel>
 
-      <TabPanel value="4">{(allProposalsList.length > 0 ? <ProcessedTable 
-        allProposalsList={allProposalsList} 
-        eventCount={allProposalsList.length} 
+      <TabPanel value="4">{(processedList.length > 0 ? <ProcessedTable 
+        proposalList={processedList} 
+        eventCount={processedList.length} 
         matches={matches} 
         accountId={accountId}
         memberStatus={memberStatus}
         depositToken={depositToken}
+        tributeToken={tributeToken}
+        tributeOffer={tributeOffer}
+        processingReward={processingReward}
         proposalDeposit={proposalDeposit}
-        handleProcessCountChange={handleProcessCountChange}
+        currentPeriod={currentPeriod}
+        handleTabValueState={handleTabValueState}
         handleProposalEventChange={handleProposalEventChange}
         handleGuildBalanceChanges={handleGuildBalanceChanges}
         handleEscrowBalanceChanges={handleEscrowBalanceChanges}
+        handleUserBalanceChanges={handleUserBalanceChanges}
         /> : <div style={{marginTop: 10, marginBottom: 10}}>No Processed Proposals</div>)}</TabPanel>
       </TabContext>
     </>

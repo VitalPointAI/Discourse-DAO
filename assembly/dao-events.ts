@@ -89,6 +89,11 @@ export class SPE {
   dK: string;
   mA: string;
   pS: u64;
+  vP: i32;
+  gP: i32;
+  sP: i32;
+  yV: i32;
+  nV: i32;
 
   constructor(
     pI: i32,
@@ -102,7 +107,13 @@ export class SPE {
     f: Array<bool>,
     dK: string,
     mA: string,
-    pS: u64
+    pS: u64,
+    vP: i32,
+    gP: i32,
+    sP: i32,
+    yV: i32,
+    nV: i32
+    
   ){
     this.pI = pI
     this.a = a
@@ -116,11 +127,16 @@ export class SPE {
     this.dK = dK
     this.mA = mA
     this.pS = pS
+    this.vP = vP
+    this.gP = gP
+    this.sP = sP
+    this.yV = yV
+    this.nV = nV
   }
 }
 
 // setup a queue for summon complete events
-export const submitProposalEvents = new PersistentDeque<SPE>("pe");
+export const submitProposalEvents = new PersistentVector<SPE>("pe");
 
 /**
  * This function records submit proposal events since NEAR doesn't currently support
@@ -138,10 +154,15 @@ export const submitProposalEvents = new PersistentDeque<SPE>("pe");
  * @param delegateKey //dK
  * @param memberAddress //mA
  * @param proposalSubmission //pS
+ * @param votingPeriod //vP
+ * @param gracePeriod //gP
+ * @param yesVote //yV
+ * @param noVote /nV
+ * @param startingPeriod // sP
  */
-export function sPE(pI: i32, a: string, sR: i32, lR: i32, tO: i32, tT: string, pR: i32, pT: string, f: Array<bool>, dK: string, mA: string, pS: u64): void {
+export function sPE(pI: i32, a: string, sR: i32, lR: i32, tO: i32, tT: string, pR: i32, pT: string, f: Array<bool>, dK: string, mA: string, pS: u64, vP: i32, gP: i32, sP: i32, yV: i32, nV: i32): void {
   DEBUG ? logging.log("[call] submitProposalEvent(" + a + ", " + sR.toString() + ", " + lR.toString() + ", " + tO.toString() + ")") : false;
-  submitProposalEvents.pushFront(new SPE(
+  submitProposalEvents.push(new SPE(
     pI,
     a,
     sR,
@@ -153,7 +174,12 @@ export function sPE(pI: i32, a: string, sR: i32, lR: i32, tO: i32, tT: string, p
     f,
     dK,
     mA,
-    pS
+    pS,
+    vP,
+    gP,
+    sP,
+    yV,
+    nV
   ));
 }
 

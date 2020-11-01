@@ -48,11 +48,11 @@ transfer_from (dao)
 185771684913 - 26400123400347 = 26 214 351 715 434
 
                                                 300000000000000
-guildleader.testnet - submitProposal (member) - 19965643342536      19965808072536      19965801786786      19961672676720      20074904868867      20074887962367
-vitalpointai.testnet- sponsorProposal -         27651953053530      27652117783530      27652111497780      27650631103260      27407022301542      26250882567363
-vitalpointai.testnet- processProposal -         118315710494739     114674314386474     113111261503134     113109781108614     114771892934922     113601429557952
+guildleader.testnet - submitProposal (member) - 19965643342536      19965808072536      19965801786786      19961672676720      20074904868867      20074887962367  24949816329903
+vitalpointai.testnet- sponsorProposal -         27651953053530      27652117783530      27652111497780      27650631103260      27407022301542      26250882567363  27428667695712  
+vitalpointai.testnet- processProposal -         118315710494739     114674314386474     113111261503134     113109781108614     114771892934922     113601429557952 69230910568725
 guildleader.testnet - submitProposal (member)                                           102075318988827     102071492654748     103507037776407     103507020869907
-vitalpointai.testnet- sponsorProposal                                                   196973843746485     196972363351965     >200 dies           dies
+vitalpointai.testnet- sponsorProposal                                                   196973843746485     196972363351965     >200 dies           
 vitalpointai.testnet- processProposal                                                   died                
 
 guildleader.testnet - submitProposal (member proposal ) -  20074887962367
@@ -64,3 +64,8 @@ vitalpointai.testnet- processProposal
 
 storage
 96495   96943   97247
+
+
+
+5x68hYzH8iy32fCapznXi8vsymSnM8pC9umPXfM9xVviRnSLbBRCaeFFq53afcJpJZDXjaPScYkkKCC5SfPqCw2L
+bbaareqhmqitq4qlrncmzqqh7mnevcsaxo4zyqqj7dksdzagxmdoredrbql6d2hem3wrlyottuzujqz3zamcmzmvn5jhdp72gzzcnkxaqzuhlk

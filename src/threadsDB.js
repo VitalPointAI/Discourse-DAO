@@ -1,432 +1,83 @@
-export function tokenName(token: AccountId): ContractPromise { //token is the fungible token contract account for the token being asked balance for given account
-    let args = new TokenNameArgs()
-  
-    let promise = ContractPromise.create(
-      token, // contract account Id
-      "getTokenName", // method
-      args.encode(), // serialized contract method arguments as Uint8Array
-      DEFAULT_GAS_VALUE, // gas attached to call
-      u128.Zero) // attached deposit to be sent with call
-  
-    //setting up args for the callback
-    let responseArgs = new OnGetTokenNameCalled()
-    logging.log(responseArgs)
-  
-    logging.log(Context.contractName)
-  
-    let callbackPromise = promise.then(
-      Context.contractName,
-      "_tokenName",
-      responseArgs.encode(),
-      2
-    )
-    return callbackPromise
-  }
-  
-  export function _thistokenName(): string {
-  const name = ''
-  let results = ContractPromise.getResults()
-  
-  assert(results.length > 0, "should be contract promise result")
-  let data = results[0]
-  
-  //verifying the remote contract call succeeded
-  if(data.status == 1) {
-    //Decoding data from the bytes buffer into the local object
-  logging.log('data buffer' + data.buffer.toString() + 'data status' + data.status.toString())
-   let result = decode<OnGetTokenCalled>(data.buffer)
-    logging.log(result)
-    return result.tokenName.tokenName
-  }
-  return name
-  }
-  
-  @nearBindgen
-  class OnGetTokenCalled {
-    constructor(public tokenName: OnGetTokenNameCalled){}
-  }
-
-
-
-
-  getATokenName(token: AccountId): void {
-    
-    logging.log("prepaid gas " + Context.prepaidGas.toString())
-    let promise = ContractPromise.create(
-      token, // contract account Id (vpc.vitalpointai.testnet)
-      "getTokenName", // method
-      new Uint8Array(0), // serialized contract method arguments as Uint8Array - method needs no args
-      u64(300000000000000), // gas attached to call
-      u128.Zero) // attached deposit to be sent with call
-      
-      //setting up args for the callback
-    // let responseArgs: OnGetTokenNameCalled = {
-    //   tokenName: ''
-    // }
-     let responseArgs = new OnGetTokenNameCalled()
-    let callbackPromise = promise.then(
-      Context.contractName,
-      "_tokenName",
-      responseArgs.encode(),
-      2
-    )
-    callbackPromise.returnAsResult()
-  }
-  
-  _tokenName(): string {
-    let results = ContractPromise.getResults()
-    assert(results.length > 0, "should be contract promise result")
-    let data = results[0]
-    
-    //verifying the remote contract call succeeded
-    if(data.status == 1) {
-      //Decoding data from the bytes buffer into the local object
-      let result = decode<OnGetTokenNameCalled>(data.buffer)
-      logging.log(result)
-      return result.tokenName
-    }
-    return ''
-    }
-
-    export class fungibleTokenApi {
-        transferFrom(from: AccountId, to: AccountId, amount: Amount, tributeToken: AccountId): ContractPromise { //tributeToken is the fungible token contract account for the tributeToken
-          let args: TransferFromArgs = { owner_id: from, new_owner_id: to, amount: amount }
-          let promise = ContractPromise.create(tributeToken, "transfer_from", args.encode(), 100000000000000, u128.Zero)
-        
-          return promise
-        }
-      
-        _transferFrom(): bool {
-          let results = ContractPromise.getResults()
-          assert(results.length > 0, "should be contract promise result")
-          let result = results[0]
-      
-          //verifying remote contract call succeeded
-          if(result.status == 1) {
-            return true
-          }
-          return false
-        }
-      
-        transfer(to: AccountId, amount: Amount, token: AccountId): ContractPromise { //token is the fungible token contract account for the token being transferred
-          let args: TransferArgs = { to, amount }
-          let promise = ContractPromise.create(token, "transfer", args.encode(), DEFAULT_GAS_VALUE, u128.Zero)
-          
-          return promise
-        }
-      
-        _transfer(): bool {
-          let results = ContractPromise.getResults()
-          assert(results.length > 0, "should be contract promise result")
-          let result = results[0]
-      
-          //verifying remote contract call succeeded
-          if(result.status ==1) {
-            return true
-          }
-          return false
-        }
-      
-        balanceOf(token: AccountId, account: AccountId): ContractPromise { //token is the fungible token contract account for the token being asked balance for given account
-          let args: BalanceArgs = {account}
-      
-          let promise = ContractPromise.create(
-            token, // contract account Id
-            "get_balance", // method
-            args.encode(), // serialized contract method arguments as Uint8Array
-            DEFAULT_GAS_VALUE, // gas attached to call
-            u128.Zero) // attached deposit to be sent with call
-      
-          //setting up args for the callback
-          let responseArgs = new OnBalanceCalledArgs()
-       
-      
-          let callbackPromise = promise.then(
-            Context.contractName,
-            "_balanceOf",
-            responseArgs.encode(),
-            2
-          )
-          return callbackPromise
-        }
-      
-      _balanceOf(account: AccountId): u128 {
-        const amount = u128.Zero
-        let results = ContractPromise.getResults()
-        assert(results.length > 0, "should be contract promise result")
-        let data = results[0]
-      
-        //verifying the remote contract call succeeded
-        if(data.status == 1) {
-          //Decoding data from the bytes buffer into the local object
-          let balance = decode<OnBalanceCalledArgs>(data.buffer)
-          logging.log(balance)
-          return balance.amount
-        }
-        return amount
-      }
-      }
-
-      export function submitMemberProposal(applicant: AccountId, shares: u128, tribute: u128, tributeType: string, proposalIdentifier: string): u64 {
-        REENTRANTGUARD.nonReentrantOpen()
-        assert(env.isValidAccountID(applicant), ERR_INVALID_ACCOUNT_ID)  
-        assert(members.get(applicant)==null, ERR_ALREADY_MEMBER)
-        assert(shares > u128.Zero, ERR_MUSTBE_GREATERTHAN_ZERO)
-        assert(tribute > u128.Zero, ERR_MUSTBE_GREATERTHAN_ZERO)
-      
-        // collect tribute from proposer and store it in the Moloch until the proposal is processed
-        let ftAPI = new tokenAPI()
-        ftAPI.incAllowance(tribute, tributeType)
-        ftAPI.transferFrom(Context.sender, MOLOCH_CONTRACT_ACCOUNT, tribute, tributeType)
-        
-       _unsafeAddToBalance(ESCROW, tributeType, tribute)
-       logging.log('user member token balance '+ getUserTokenBalance(ESCROW, tributeType).toString())
-      
-        let flags = new Array<bool>(7) // [sponsored, processed, didPass, cancelled, whitelist, guildkick, member]
-        flags[6] = true; // member Proposal
-        
-        _submitProposal(proposalIdentifier, applicant, shares, u128.Zero, tribute, tributeType, u128.Zero, '', flags)
-        REENTRANTGUARD.nonReentrantClose()
-        return proposalCount-1
-      }
-
-
-      export function isVotingPeriod(pI: i32): void {
-        let proposal = proposals[pI]
-        let current = getCurrentPeriod()
-        logging.log('current ' + current.toString())
-        logging.log('proposal SP ' + proposal.sP.toString())
-        logging.log('context timestamp' + Context.blockTimestamp.toString())
-        if(current >= proposal.sP && current <= (proposal.sP + storage.getSome<i32>('votingPeriodLength'))){
-          logging.log('proposal VP before' + proposal.vP.toString())
-          proposal.vP = true
-          logging.log('proposal VP after' + proposal.vP.toString())
-          proposal.gP = false
-          proposals[pI] = proposal
-      
-          let index = getProposalEventsIndex(pI)
-          logging.log(' index in vote ' + index.toString())
-          let proposalEvent = submitProposalEvents[index]
-          proposalEvent.vP = true
-          proposalEvent.gP = false
-          submitProposalEvents[index] = proposalEvent
-        }
-      }
-      
-      export function isGracePeriod(pI: i32): void {
-        let proposal = proposals[pI]
-        let current = getCurrentPeriod()
-        let votingPeriod = proposal.sP + storage.getSome<i32>('votingPeriodLength')
-        let endGP = votingPeriod + storage.getSome<i32>('gracePeriodLength')
-        if(current >= votingPeriod && current <= endGP ){
-          proposal.vP = false
-          proposal.gP = true
-          proposals[pI] = proposal
-      
-          let index = getProposalEventsIndex(pI)
-          let proposalEvent = submitProposalEvents[index]
-          proposalEvent.vP = false
-          proposalEvent.gP = true
-          submitProposalEvents[index] = proposalEvent
-        }
-      }
-
-
-
-      // flags [sponsored, processed, didPass, cancelled, whitelist, guildkick, member]
-  function handleProposalCountChange() {
-    if(proposalList.length > 0){
-      let i = 0
-      let pCount = 0
-      while (i < proposalList.length) {
-        pCount += proposalList[i].filter((x) => !x.flags[0] && !x.flags[1] && !x.flags[3]).length
-        i++
-      }
-      setProposalCount(pCount)
-    }
-  }
-
-  function handleVotingCountChange() {
-    if(proposalList.length > 0){
-      let i = 0
-      let vCount = 0
-      while (i < proposalList.length) {
-        vCount += proposalList[i].filter((x) => x.flags[0] && !x.flags[1] && !x.flags[3] && (x.votingPeriod || x.gracePeriod)).length
-        i++
-      }
-      setVotingCount(vCount)
-    }
-  }
-
-  function handleProcessCountChange() {
-    if(proposalList.length > 0){
-      let i = 0
-      let prCount = 0
-      while (i < proposalList.length) {
-        prCount += proposalList[i].filter((x) => x.flags[0] && x.flags[1] && !x.flags[3]).length 
-        i++
-      }
-      setProcessCount(prCount)
-    }
-  }
-
-  function handleQueueCountChange() {
-    if(proposalList.length > 0){
-      let i = 0
-      let qCount = 0
-      while (i < proposalList.length) {
-        qCount += proposalList[i].filter((x) => x.flags[0] && !x.flags && !x.votingPeriod && !x.gracePeriod).length
-        i++
-      }
-      setQueueCount(qCount)
-    }
-  }
-
-
-
-  //import {Libp2pCryptoIdentity} from '@textile/threads-core';
-import { Client, ThreadID, PrivateKey, createUserAuth } from '@textile/hub';
+import { Client, ThreadID, PrivateKey } from '@textile/hub';
 import { encryptSecretBox, decryptSecretBox, parseEncryptionKeyNear } from './encryption'
 import Big from 'big.js'
 
 const appId = process.env.APP_ID;
-
 let appDatabase;
 let userDatabase;
-
 const BOATLOAD_OF_GAS = Big(3).times(10 ** 14).toFixed()
 
-export async function generateIdentity() {
-    let identity
-    try {
-        let storedIdent = localStorage.getItem(appId + ":" + process.env.THREADDB_APPIDENTITY_STRING)
-        if (storedIdent === null) {
-            throw new Error('No Identity')
-        }
-        identity = PrivateKey.fromString(storedIdent)
-        let loginCallback = appLoginWithChallenge(identity);
-        console.log('login Callback ', loginCallback)
-        return identity
-    } catch (e) {
-        try {
-            identity = PrivateKey.fromRandom()
-            const identityString = identity.toString()
-            let loginCallback = appLoginWithChallenge(identity);
-            console.log('login Callback ', loginCallback)
-            localStorage.setItem(appId + ":" + process.env.THREADDB_APPIDENTITY_STRING, identityString)
-        } catch (err) {
-            return err.message
-        }
-    }
-    return identity
-}
-
-export async function getAppIdentity(publicKey) {
+async function getAppIdentity(appId) {
       const type = 'org';
+      console.log('appId here', appId)
       /** Restore any cached app identity first */
-   //   const cached = localStorage.getItem(appId + ":" + process.env.THREADDB_APPIDENTITY_STRING)
-    
-  //    if (cached !== null) {
-   //   /**Convert the cached app identity string to a Libp2pCryptoIdentity and return */
-   //   return PrivateKey.fromString(cached)
-   //   }
+      const cached = localStorage.getItem(appId + ":" + process.env.THREADDB_APPIDENTITY_STRING)
+    console.log ('cached app identity ', cached)
+      if (cached !== null) {
+      /**Convert the cached app identity string to a Libp2pCryptoIdentity and return */
+      return PrivateKey.fromString(cached)
+      }
   
       /** Try and retrieve app identity from contract if it exists */
-  //    if (cached === null) {
+      if (cached === null) {
               try {
-
-                 /** No cached identity existed, so create a new one */
-                 let identity = await PrivateKey.fromRandom()
-                 console.log('identity ', identity)
-                  
-                 /** Add the string copy to the cache */
-                 localStorage.setItem(appId + ":" + process.env.THREADDB_APPIDENTITY_STRING, identity.toString())
-
-                 const challenge = Buffer.from(publicKey.toString())
-                 console.log('challenge ', challenge)
-                 const credentials = await identity.sign(challenge)
-
-                 console.log('credentials ', credentials)
-
-                let loginCallback = appLoginWithChallenge(identity);
-                console.log('login Callback ', loginCallback)
-
-                 const keyInfo = {
-                     key: process.env.APP_KEY,
-                     secret: process.env.APP_SECRET_KEY
-                 }
-
-                 const expiration = new Date(Date.now() + 60 * 1000)
-
-                 const auth = await createUserAuth(keyInfo.key, keyInfo.secret ?? '', expiration)
-                 console.log('userAuth ', auth)
-                
-                 const client = Client.withUserAuth(credentials)
-                 console.log('client ', client)
-
-                 const token = await client.getToken(identity)
-                 return token
-
-                //   let tempIdentity = await PrivateKey.fromRandom()
+                  let tempIdentity = PrivateKey.fromRandom()
+                  console.log('temp Identity ', tempIdentity)
   
-                //   let loginCallback = appLoginWithChallenge(tempIdentity);
-                //   let db = Client.withUserAuth(loginCallback);
-                //   let token = await db.getToken(tempIdentity)
+                  let loginCallback = appLoginWithChallenge(tempIdentity);
+                  let db = Client.withUserAuth(loginCallback);
+                  console.log('db ', db)
+                  let token = await db.getToken(tempIdentity)
   
-                //   if(token) {
-                //   /**Get encryption key*/
-                //   let loginCallback = loginWithChallengeEK(tempIdentity);    
-                //   let encKey = await Promise.resolve(loginCallback)
-                //   let encryptionKey = encKey.enckey
-                //   parseEncryptionKeyNear(appId, type, encryptionKey);
-                //   let retrieveId = await window.contract.getAppIdentity({appId: appId});
-                //   console.log('retrieveAppID', retrieveId)
-                //   let identity = decryptSecretBox(retrieveId.identity);
+                  if(token) {
+                  /**Get encryption key*/
+                  let loginCallback = loginWithChallengeEK(tempIdentity);    
+                  let encKey = await Promise.resolve(loginCallback)
+                  let encryptionKey = encKey.enckey
+                  parseEncryptionKeyNear(appId, type, encryptionKey);
+                  let retrieveId = await window.contract.getAppIdentity({appId: appId});
+                  console.log('retrieveAppID', retrieveId)
+                  let identity = decryptSecretBox(retrieveId.identity);
   
-                //   localStorage.setItem(appId + ":" + process.env.THREADDB_APPIDENTITY_STRING, identity.toString())
-                //   localStorage.setItem(appId + ":" + process.env.THREADDB_APP_THREADID, retrieveId.threadId);
-                //   return await PrivateKey.fromString(identity); 
-                //  }
+                  localStorage.setItem(appId + ":" + process.env.THREADDB_APPIDENTITY_STRING, identity.toString())
+                  localStorage.setItem(appId + ":" + process.env.THREADDB_APP_THREADID, retrieveId.threadId);
+                  return PrivateKey.fromString(identity); 
+                  }
               } catch (err) {
                   console.log(err)
                  
                   /** No cached identity existed, so create a new one */
-                  let identity = await PrivateKey.fromRandom()
+                  let identity = PrivateKey.fromRandom()
                   
                   /** Add the string copy to the cache */
                   localStorage.setItem(appId + ":" + process.env.THREADDB_APPIDENTITY_STRING, identity.toString())
-
-                  const challenge = Buffer.from(publicKey)
-                  const credentials = identity.sign(challenge)
-                    return credentials
-                 // console.log('credentials ', credentials)
   
-                //   /**Get encryption key*/
-                //   let loginCallback = loginWithChallengeEK(identity);    
-                //   let encKey = await Promise.resolve(loginCallback)
-                //   let encryptionKey = encKey.enckey 
-                //   parseEncryptionKeyNear(appId, type, encryptionKey);
-                //   let encryptedId = encryptSecretBox(identity.toString());
+                  /**Get encryption key*/
+                  let loginCallback = loginWithChallengeEK(identity);    
+                  let encKey = await Promise.resolve(loginCallback)
+                  let encryptionKey = encKey.enckey 
+                  parseEncryptionKeyNear(appId, type, encryptionKey);
+                  let encryptedId = encryptSecretBox(identity.toString());
                  
-                //   const threadId = ThreadID.fromRandom();
-                //   let stringThreadId = threadId.toString();
-                //   localStorage.setItem(appId + ":" + process.env.THREADDB_APP_THREADID, stringThreadId);
-                //   let status = 'active'
-                //   console.log('GAS', process.env.DEFAULT_GAS_VALUE)
-                //   await window.contract.setAppIdentity({appId: appId, identity: encryptedId, threadId: stringThreadId, status: status }, process.env.DEFAULT_GAS_VALUE);
+                  const threadId = ThreadID.fromRandom();
+                  let stringThreadId = threadId.toString();
+                  localStorage.setItem(appId + ":" + process.env.THREADDB_APP_THREADID, stringThreadId);
+                  let status = 'active'
+                  console.log('GAS', process.env.DEFAULT_GAS_VALUE)
+                  await window.contract.setAppIdentity({appId: appId, identity: encryptedId, threadId: stringThreadId, status: status }, process.env.DEFAULT_GAS_VALUE);
   
-                //   const newIdentity = await window.contract.getAppIdentity({appId: appId});
-                //   console.log('New App Identity', newIdentity)
-                //   let success = false
-                //   while(!success) {
-                //     let receipt = await window.contract.registerApp({appNumber: newIdentity.appNumber.toString() , appId: appId, appCreatedDate: new Date().getTime().toString(), status: status}, process.env.DEFAULT_GAS_VALUE);
-                //     if(receipt) {
-                //       success = true
-                //     }
-                //   }
-                //   return PrivateKey.fromString(identity.toString()); 
+                  const newIdentity = await window.contract.getAppIdentity({appId: appId});
+                  console.log('New App Identity', newIdentity)
+                  let success = false
+                  while(!success) {
+                    let receipt = await window.contract.registerApp({appNumber: newIdentity.appNumber.toString() , appId: appId, appCreatedDate: new Date().getTime().toString(), status: status}, process.env.DEFAULT_GAS_VALUE);
+                    if(receipt) {
+                      success = true
+                    }
+                  }
+                  return PrivateKey.fromString(identity.toString()); 
               }
-  //    }             
+      }             
 }
 
 
@@ -443,13 +94,13 @@ async function getIdentity(accountId) {
     /** Try and retrieve identity from contract if it exists */
     if (cached === null) {
             try {
-                let tempIdentity = await PrivateKey.fromRandom()
+                let tempIdentity = PrivateKey.fromRandom()
                 console.log('tempidentity', tempIdentity)
                 const loginCallback = loginWithChallenge(tempIdentity);
                 const db = Client.withUserAuth(loginCallback);
                 console.log('db', db)
                 const token = await db.getToken(tempIdentity)
-                console.log('tempid', token)
+                console.log('tempid token', token)
                 if(token) {
                 /**Get encryption key*/
                 let loginCallback = loginWithChallengeEK(tempIdentity);    
@@ -459,16 +110,16 @@ async function getIdentity(accountId) {
                 let retrieveId = await window.contract.getIdentity({account: accountId});
                 console.log('retrieveID', retrieveId)
                 let identity = decryptSecretBox(retrieveId.identity);
-                
+                console.log('from contract threadId - retrieveId.threadId', retrieveId.threadId)
                 localStorage.setItem(appId + ":" + process.env.THREADDB_IDENTITY_STRING, identity.toString())
                 localStorage.setItem(appId + ":" + process.env.THREADDB_USER_THREADID, retrieveId.threadId);
-                return await PrivateKey.fromString(identity); 
+                return PrivateKey.fromString(identity); 
               }
             } catch (err) {
                 console.log(err)
                
                 /** No cached identity existed, so create a new one */
-                let identity = await PrivateKey.fromRandom()
+                let identity = PrivateKey.fromRandom()
                 
                 /** Add the string copy to the cache */
                 localStorage.setItem(appId + ":" + process.env.THREADDB_IDENTITY_STRING, identity.toString())
@@ -517,7 +168,7 @@ async function getAppThreadId(appId) {
   /** Try and retrieve from contract if it exists */
   if (cached === null) {
           try {
-              let retrieveId = await window.contract.getAppIdentity({threadId: appId});
+              let retrieveId = await window.contract.getAppIdentity({appId: appId});
               console.log('retrieve AppIdthread', retrieveId)
               let identity = decryptSecretBox(retrieveId);
               console.log('retrieved appthreadId decrypted', identity.threadId)
@@ -560,7 +211,8 @@ const loginWithChallengeEK = (identity) => {
          * 
          * Note: this should be upgraded to wss for production environments.
          */
-        const socketUrl = `wss://vpai.azurewebsites.net:443/ws/enckey`
+       // const socketUrl = `ws://vpai.azurewebsites.net/ws/enckey`
+        const socketUrl = `wss://vpai-auth-server.herokuapp.com/ws/enckey`
         
         /** Initialize our websocket connection */
         const socket = new WebSocket(socketUrl)
@@ -611,16 +263,16 @@ const loginWithChallenge = (identity) => {
          * Note: this should be upgraded to wss for production environments.
          */
        
-        const socketUrl = `wss://vpai.azurewebsites.net:443/ws/userauth`
-        
+        //let socketUrl = `ws://vpai.azurewebsites.net/ws/userauth`
+        const socketUrl = `wss://vpai-auth-server.herokuapp.com/ws/userauth`
         /** Initialize our websocket connection */
-        const socket = new WebSocket(socketUrl)
-  
+        let socket = new WebSocket(socketUrl)
+        console.log('socket ', socket)
         /** Wait for our socket to open successfully */
         socket.onopen = () => {
           /** Get public key string */
-          const publicKey = identity.public.toString();
-          console.log('publickey', publicKey)
+          let publicKey = identity.public.toString();
+         console.log('on open pub key ', publicKey)
           /** Send a new token request */
           socket.send(JSON.stringify({
             pubkey: publicKey,
@@ -629,7 +281,8 @@ const loginWithChallenge = (identity) => {
   
           /** Listen for messages from the server */
           socket.onmessage = async (event) => {
-            const data = JSON.parse(event.data)
+           console.log('message event ', event)
+            let data = JSON.parse(event.data)
             console.log('data', data)
             switch (data.type) {
               /** Error never happen :) */
@@ -638,16 +291,20 @@ const loginWithChallenge = (identity) => {
                 break;
               }
               /** The server issued a new challenge */
-              case 'challenge':{
+              case 'challenge': {
                 /** Convert the challenge json to a Buffer */
-                const buf = Buffer.from(data.value)
+                let buf = Buffer.from(data.value)
+                console.log('buf ', buf)
                 /** User our identity to sign the challenge */
-                const signed = await identity.sign(buf)
+                let signed = await identity.sign(buf)
+               console.log('signed ', signed)
                 /** Send the signed challenge back to the server */
+               console.log('socket here ', socket)
                 socket.send(JSON.stringify({
                   type: 'challenge',
                   sig: Buffer.from(signed).toJSON()
-                })); 
+                }));
+              
                 break;
               }
               /** New token generated */
@@ -677,17 +334,17 @@ const loginWithChallenge = (identity) => {
          * Note: this should be upgraded to wss for production environments.
          */
        
-        const socketUrl = `wss://vpai.azurewebsites.net:443/ws/appauth`
-        
+       // const socketUrl = `ws://vpai.azurewebsites.net/ws/appauth`
+        const socketUrl = `wss://vpai-auth-server.herokuapp.com/ws/appauth`
         
         /** Initialize our websocket connection */
         const socket = new WebSocket(socketUrl)
-  
+        console.log('app socket ', socket)
         /** Wait for our socket to open successfully */
         socket.onopen = () => {
           /** Get public key string */
           const publicKey = identity.public.toString();
-  
+           
           /** Send a new token request */
           socket.send(JSON.stringify({
             pubkey: publicKey,
@@ -732,9 +389,12 @@ const loginWithChallenge = (identity) => {
 
   export async function initiateAppDB() {
     let type = 'app';
+    let appId = process.env.APPID
+    console.log('appID ', appId)
     const identity = await getAppIdentity(appId);
     console.log('app identity', identity)
     const threadId = await getAppThreadId(appId);
+    console.log('app thread Id ', threadId)
     const appdb = await tokenWakeUp(type)
  
     console.log('Verified App on Textile API');
@@ -766,10 +426,11 @@ const loginWithChallenge = (identity) => {
 
 export async function initiateDB() {
     let type = 'member';
-    console.log(window.currentUser)
-    const identity = await getIdentity(window.currentUser.accountId);
+    console.log(window.accountId)
+    const identity = await getIdentity(window.accountId);
     console.log('identity', identity)
-    const threadId = await getThreadId(window.currentUser.accountId);
+    const threadId = await getThreadId(window.accountId);
+    console.log('initiate db threadId ', threadId)
     const db = await tokenWakeUp(type)
     await db.getToken(identity)
     userDatabase = db
@@ -783,7 +444,7 @@ export async function initiateDB() {
             threadId: threadId
         }
     } catch (err) {
-        await db.newDB(ThreadID.fromString(threadId));
+        await db.newDB(ThreadID.fromString(threadId), type);
         console.log('DB created');
         dbObj = {
             db: db,
@@ -803,7 +464,7 @@ export async function initiateAppCollection(collection, schema) {
       return r
   } catch (err) {
       console.log(err);
-      await appDatabase.newCollection(ThreadID.fromString(localStorage.getItem(appId + ":" + process.env.THREADDB_APP_THREADID)), collection, schema);
+      await appDatabase.newCollection(ThreadID.fromString(localStorage.getItem(appId + ":" + process.env.THREADDB_APP_THREADID)), {name: collection, schema: schema});
       console.log('New collection created', collection);
   }
 }
@@ -812,16 +473,44 @@ export async function initiateAppCollection(collection, schema) {
 export async function initiateCollection(collection, schema) {
 
     try {
+      console.log('userdb ', userDatabase)
+      console.log('appId initiate', appId)
+  
+      console.log('threadId ', ThreadID.fromString(localStorage.getItem(appId + ":" + process.env.THREADDB_USER_THREADID)))
         const r = await userDatabase.find(ThreadID.fromString(localStorage.getItem(appId + ":" + process.env.THREADDB_USER_THREADID)), collection, {})
         console.log('r :', r)
         console.log('found :', r.instancesList.length)    
         return r
     } catch (err) {
         console.log(err);
-        await userDatabase.newCollection(ThreadID.fromString(localStorage.getItem(appId + ":" + process.env.THREADDB_USER_THREADID)), collection, schema);
+        await userDatabase.newCollection(ThreadID.fromString(localStorage.getItem(appId + ":" + process.env.THREADDB_USER_THREADID)), {name: collection, schema: schema});
         console.log('New collection created', collection);
     }
 }
+
+export async function isAppCollection(collection) {
+  try {
+      let r = await appDatabase.getCollectionInfo(ThreadID.fromString(localStorage.getItem(appId + ":" + process.env.THREADDB_APP_THREADID)), collection)
+      console.log('r :', r)
+      return true
+  } catch (err) {
+      console.log(err);
+      return false
+  }
+}
+
+export async function isUserCollection(collection) {
+  try {
+      let r = await userDatabase.getCollectionInfo(ThreadID.fromString(localStorage.getItem(appId + ":" + process.env.THREADDB_APP_THREADID)), collection)
+      console.log('r :', r)
+      return true
+  } catch (err) {
+      console.log(err);
+      return false
+  }
+}
+
+
 
 
 export async function dataURItoBlob(dataURI)
@@ -851,13 +540,13 @@ export async function tokenWakeUp(type) {
   /** Use the identity to request a new API token when needed */
   console.log('type', type)
   if (type === 'member') {
-    const identity = await getIdentity(window.currentUser.accountId);
-    const loginCallback = loginWithChallenge(identity, type);
+    const identity = await getIdentity(window.accountId);
+    const loginCallback = loginWithChallenge(identity);
     const db = Client.withUserAuth(loginCallback);
     return db
   } else if (type ==='app' ) {
     const identity = await getAppIdentity(appId)
-    const loginCallback = appLoginWithChallenge(identity, type);
+    const loginCallback = appLoginWithChallenge(identity);
     const db = Client.withUserAuth(loginCallback);
     return db
   }
@@ -871,8 +560,8 @@ export async function retrieveAppRecord(id, collection) {
   console.log('id', id)
   try {
       let r = await appDatabase.findByID(ThreadID.fromString(localStorage.getItem(appId + ":" + process.env.THREADDB_APP_THREADID)), collection, id)
-      console.log('record retrieved', r.instance);
-      obj = r.instance
+      console.log('record retrieved', r);
+      obj = r
   } catch (err) {
       console.log('error', err)
       console.log('id does not exist')
@@ -915,9 +604,11 @@ export async function retrieveRecord(id, collection) {
 
     let obj
     try {
+      console.log('id', id)
+      console.log('collection ', collection)
         let r = await userDatabase.findByID(ThreadID.fromString(localStorage.getItem(appId + ":" + process.env.THREADDB_USER_THREADID)), collection, id)
-        console.log('record retrieved', r.instance);
-        obj = r.instance
+        console.log('record retrieved', r);
+        obj = r
     } catch (err) {
         console.log('error', err)
         console.log('id does not exist')
@@ -950,7 +641,7 @@ export async function createRecord(collection, record) {
 export async function updateAppRecord(collection, record) {
   
     try {
-       await appDatabase.save(ThreadID.fromString(localStorage.getItem(appId + ":" + process.env.THREADDB_APP_THREADID)), collection, [record])        
+       await appDatabase.save(ThreadID.fromString(localStorage.getItem(appId + ":" + process.env.THREADDB_APP_THREADID)), collection, record)        
        console.log('success app record updated')
     } catch (err) {
         console.log('error', err)
@@ -961,7 +652,7 @@ export async function updateAppRecord(collection, record) {
   export async function updateRecord(collection, record) {
   
       try {
-         await userDatabase.save(ThreadID.fromString(localStorage.getItem(appId + ":" + process.env.THREADDB_USER_THREADID)), collection, [record])        
+         await userDatabase.save(ThreadID.fromString(localStorage.getItem(appId + ":" + process.env.THREADDB_USER_THREADID)), collection, record)        
          console.log('success record updated')
       } catch (err) {
           console.log('error', err)

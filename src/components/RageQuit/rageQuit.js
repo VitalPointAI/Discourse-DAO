@@ -12,8 +12,18 @@ import DialogContent from '@material-ui/core/DialogContent'
 import DialogContentText from '@material-ui/core/DialogContentText'
 import DialogTitle from '@material-ui/core/DialogTitle'
 import LinearProgress from '@material-ui/core/LinearProgress'
+import Stepper from '@material-ui/core/Stepper'
+import Step from '@material-ui/core/Step'
+import StepLabel from '@material-ui/core/StepLabel'
+import StepContent from '@material-ui/core/StepContent'
 import Typography from '@material-ui/core/Typography'
 import InputAdornment from '@material-ui/core/InputAdornment'
+import Card from '@material-ui/core/Card'
+import CardActions from '@material-ui/core/CardActions'
+import CardHeader from '@material-ui/core/CardHeader'
+import CardContent from '@material-ui/core/CardContent'
+import Chip from '@material-ui/core/Chip'
+import Paper from '@material-ui/core/Paper'
 
 const BOATLOAD_OF_GAS = Big(3).times(10 ** 14).toFixed()
 
@@ -42,24 +52,43 @@ const useStyles = makeStyles((theme) => ({
   },
   }));
 
-export default function MemberProposal(props) {
+export default function RageQuit(props) {
   const [open, setOpen] = useState(true)
   const [finished, setFinished] = useState(true)
   const [applicant, setApplicant] = useState(props.accountId)
-  const [shares, setShares] = useState('')
-  const [tribute, setTribute] = useState('')
+  const [shares, setShares] = useState('0')
+  const [loot, setLoot] = useState('0')
+  const [memberShares, setMemberShares] = useState()
+  const [memberLoot, setMemberLoot] = useState()
   
 
   const classes = useStyles()
   const { register, handleSubmit, watch, errors } = useForm()
-  const { handleMemberProposalClickState, 
+  const { 
+    handleRageQuitClickState, 
     handleProposalEventChange,
     handleGuildBalanceChanges,
     handleEscrowBalanceChanges,
     tokenName, 
-    minSharePrice, 
+    minSharePrice,
+    accountId,
     depositToken } = props
-console.log('depositToken ', depositToken)
+
+    useEffect(() => {
+        async function fetchData() {
+            let shares = await window.contract.getMemberShares({member: accountId})
+            setMemberShares(shares)
+            let loot = await window.contract.getMemberLoot({member: accountId})
+            setMemberLoot(loot)
+        }
+       
+        fetchData()
+          .then((res) => {
+            console.log('res', res)
+          })
+
+    },[])
+
   const handleClickOpen = () => {
     setOpen(true)
   };
@@ -69,100 +98,94 @@ console.log('depositToken ', depositToken)
     setOpen(false)
   };
 
-  const handleSharesRequestedChange = (event) => {
+  const handleSharesToBurnChange = (event) => {
     setShares(event.target.value.toString());
   };
 
-  const handleTributeChange = (event) => {
-    setTribute(event.target.value.toString());
+  const handleLootChange = (event) => {
+    setLoot(event.target.value.toString());
   };
 
   const onSubmit = async (values) => {
     event.preventDefault()
     setFinished(false)
     
-    let finished = await window.contract.submitProposal({
-                    a: applicant,
-                    sR: parseInt(shares),
-                    lR: parseInt('0'),
-                    tO: parseInt(tribute),
-                    tT: depositToken,
-                    pR: parseInt('0'),
-                    pT: depositToken
+    let finished = await window.contract.ragequit({
+                    sharesToBurn: parseInt(shares),
+                    lootToBurn: parseInt(loot)
                     }, BOATLOAD_OF_GAS)
                   
     let changed = await handleProposalEventChange()
-    await handleGuildBalanceChanges()
-    await handleEscrowBalanceChanges()
     
     if(finished && changed) {
       setFinished(true)
       setOpen(false)
-      handleMemberProposalClickState(false)
+      handleRageQuitClickState(false)
     }
-}
+  }
+
+  const isShares = shares.length > 0
+  const isLoot = loot.length > 0
 
   return (
     <div>
      
       <Dialog open={open} onClose={handleClose} aria-labelledby="form-dialog-title">
-        <DialogTitle id="form-dialog-title">Membership Proposal</DialogTitle>
+        <DialogTitle id="form-dialog-title">Rage Quit</DialogTitle>
         <DialogContent>
         {!finished ? <LinearProgress className={classes.progress} /> : (
             <DialogContentText style={{marginBottom: 10}}>
-            Submit membership proposal for:
+            You can burn and then withdraw up to the following:
+            <Typography component="h5">Shares: {memberShares}</Typography>
+            <Typography component="h5">Loot: {memberLoot}</Typography>
             </DialogContentText>)}
             <Typography component="h5" style={{marginBottom: 20}}>{applicant}</Typography>
               <div>
                 <TextField
                     autoFocus
                     margin="dense"
-                    id="membership-proposal-sharesRequested"
+                    id="ragequit-sharesToBurn"
                     variant="outlined"
-                    name="sharesRequested"
-                    label="Shares Requested"
+                    name="shares"
+                    label="Shares to Burn"
                     placeholder="10"
                     value={shares}
-                    onChange={handleSharesRequestedChange}
-                    inputRef={register({
-                        required: true,
-                        min: 1,
-                        max: 10
-                        
+                    onChange={handleSharesToBurnChange}
+                    inputRef={register({              
                     })}
                     InputProps={{
                         endAdornment: <InputAdornment position="end">Shares</InputAdornment>,
                     }}
                 />
-              {errors.sharesRequested && <p style={{color: 'red'}}>You must provide a number between 1 and 10.</p>}
+              {errors.shares && <p style={{color: 'red'}}>You must provide a number.</p>}
             </div><div>
             <TextField
               margin="dense"
-              id="member-proposal-tribute"
+              id="ragequit-lootToBurn"
               variant="outlined"
-              name="memberTribute"
-              label="Tribute"
+              name="loot"
+              label="Loot To Burn"
               placeholder="1"
-              value={tribute}
-              onChange={handleTributeChange}
-              inputRef={register({
-                  required: true,
-                  min: {minSharePrice}
-              })}
+              value={loot}
+              onChange={handleLootChange}
               InputProps={{
                 endAdornment: <InputAdornment position="end">{tokenName}</InputAdornment>,
                 }}
               />
-              {errors.memberTribute && <p style={{color: 'red'}}>You must enter a value greater than {minSharePrice}.</p>}
+              {errors.loot && <p style={{color: 'red'}}>You must provide a number.</p>}
               </div>
           </DialogContent>
         <DialogActions>
-        <Button onClick={handleSubmit(onSubmit)} color="primary" type="submit">
-            Submit Proposal
-          </Button>
-          <Button onClick={handleClose} color="primary">
+        <Button 
+            disable = {isShares || isLoot ? false : true}
+            onClick={handleSubmit(onSubmit)} 
+            color="primary" 
+            type="submit">
+                Submit Rage Quit
+        </Button>
+        <Button onClick={handleClose} color="primary">
             Cancel
-          </Button>
+        </Button>
         </DialogActions>
       </Dialog>
     </div>

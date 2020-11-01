@@ -2,8 +2,12 @@ import 'regenerator-runtime/runtime'
 import 'fontsource-roboto';
 import React, { useState, useEffect } from 'react'
 import { providers, transactions, Account, utils, context } from 'near-api-js'
+import { PrivateKey, ThreadID } from '@textile/hub'
+import { getAppIdentity, generateIdentity, initiateDB, initiateAppDB } from './threadsDB'
+import { makeStyles } from '@material-ui/core/styles'
 
 // Material UI imports
+import Typography from '@material-ui/core/Typography'
 import LinearProgress from '@material-ui/core/LinearProgress'
 
 // DApp component imports
@@ -17,6 +21,15 @@ import { Provider } from 'near-api-js/lib/providers';
 
 const BN = require('bn.js')
 const sha256 = require('js-sha256')
+
+const useStyles = makeStyles((theme) => ({
+  root: {
+   height: '100%',
+   display: 'flex',
+   justifyContent: 'center',
+   alignItems: 'center'
+  },
+  }));
 
 export default function App() {
 
@@ -37,8 +50,15 @@ export default function App() {
   const [userBalance, setUserBalance] = useState()
   const [memberInfo, setMemberInfo] = useState()
   const [proposalDeposit, setProposalDeposit] = useState()
+  const [tributeToken, setTributeToken] = useState()
+  const [processingReward, setProcessingReward] = useState()
+  const [tributeOffer, setTributeOffer] = useState()
+  const [periodDuration, setPeriodDuration] = useState()
+  const [dbLoaded, setDBLoaded] = useState(false)
+  const [proposalComments, setProposalComments] = useState([])
 
-  
+  const classes = useStyles()
+
   function handleInitChange(newState) {
     setInit(newState)
   }
@@ -64,6 +84,18 @@ export default function App() {
       let currentGuildBalance = await window.contract.getGuildTokenBalances()
       if(currentGuildBalance) {
         setGuildBalance(currentGuildBalance)
+      }
+      return true
+    } catch (err) {
+      return false
+    }
+  }
+
+  async function handleUserBalanceChanges() {
+    try {
+      let currentUserBalance = await window.contract.getUserTokenBalance({user: accountId, token: depositToken})
+      if(currentUserBalance) {
+        setUserBalance(currentUserBalance)
       }
       return true
     } catch (err) {
@@ -307,6 +339,36 @@ export default function App() {
     };
   }
 
+  async function textileCredential() {
+    let currentUserKey = window.localStorage.getItem('near-api-js:keystore:' + window.accountId + ':' + window.walletConnection._networkId)
+    console.log('current user key ', currentUserKey.substr(8,))
+    
+    const currentUserKeyPair = utils.key_pair.KeyPair.fromString(currentUserKey)
+    console.log('current user key pair', currentUserKeyPair)
+
+    const currentUserKeyPublicKey = currentUserKeyPair.getPublicKey()
+    console.log('current user key public key here ', currentUserKeyPublicKey.toString())
+
+    return currentUserKeyPublicKey
+    
+
+    //const keyToUse = new Uint8Array(currentUserKey.substr(8,))
+    const array = Uint8Array.from(currentUserKey.substr(8,))
+    console.log('array ', array)
+
+    /** Random new identity */
+   const identity = await PrivateKey.fromRandom()
+   console.log('identity ', identity)
+
+  // const key = await PrivateKey.fromString(keyToUse)
+  // console.log('key ', key)
+
+   const id = identity.toString()
+   console.log('identity ', id)
+  }
+
+  
+
   // The useEffect hook can be used to fire side-effects during render
   // Learn more: https://reactjs.org/docs/hooks-intro.html
   useEffect(
@@ -318,12 +380,50 @@ export default function App() {
         setAccountId(window.accountId)
         console.log('wallet ', window.walletConnection)
               
-        async function fetchData() {         
+        async function fetchData() {
+
+          setDBLoaded(false)
+          let userDB = await initiateDB()
+          let appDB = await initiateAppDB()
+          
+      //    console.log('userdb ', userDB)
+      //    console.log('appdb ', appDB)
+
+       //   let userDBInfo = await userDB.db.getDBInfo(ThreadID.fromString(userDB.threadId))
+       //   console.log('userdbinfo ', userDBInfo)
+         
+          // try {
+          //  // let userDBCollectionInfo = await userDB.db.getCollectionInfo(ThreadID.fromString(userDB.threadId))
+          //  let appId = 'vpdao'
+          //  let userDBCollectionInfo = await userDB.db.findByID(ThreadID.fromString(localStorage.getItem(appId + ":" + process.env.THREADDB_USER_THREADID)), 'MemberProposal', '0')
+          //   console.log('userdb collection info ', userDBCollectionInfo)
+          // } catch (err) {
+          //   console.log(err)
+          // }
+
+          // let appDBInfo = await appDB.db.getDBInfo(ThreadID.fromString(appDB.threadId))
+          // console.log('appdbinfo ', appDBInfo)
+
+          // try {
+          //   let appDBCollectionInfo = await appDB.db.getCollectionInfo(ThreadID.fromString(appDB.threadId))
+          //   console.log('appdb collection info ', appDBCollectionInfo)
+          // } catch (err) {
+          //   console.log(err)
+          // }
+
+
           const provider = await window.provider
           console.log('provider ', provider)
           
         //  await deleteUserAccountAccessKey()
     //    await setAccountAccessKey()
+    //   const publicKey = await textileCredential()
+    //   console.log('publicKey ', publicKey)
+    //   let credentials = await getAppIdentity(publicKey)
+    //   console.log('credentials app ', credentials)
+
+    //   let identity = await generateIdentity()
+    //   console.log('identity ', identity)
 
           try {         
               try {
@@ -347,6 +447,22 @@ export default function App() {
                 setProposalDeposit(deposit)
               } catch (err) {
                 console.log('no proposal deposit yet')
+                return false
+              }
+
+              try {
+                let reward = await window.contract.getProcessingReward()
+                setProcessingReward(reward)
+              } catch (err) {
+                console.log('no processing reward yet')
+                return false
+              }
+
+              try {
+                let duration = await window.contract.getPeriodDuration()
+                setPeriodDuration(duration)
+              } catch (err) {
+                console.log('no period duration yet')
                 return false
               }
                
@@ -385,6 +501,7 @@ export default function App() {
             console.log('res', res)
             res ? setInit(true) : setInit(false)
             setDone(true)
+            setDBLoaded(true)
         })
 
 
@@ -401,6 +518,17 @@ export default function App() {
         fetchEscrowBalances()
         .then((res) => {
           console.log('escrow balances exist', res)
+        })
+
+        async function fetchAllComments() {
+          let allComments = await window.contract.getAllComments()
+          console.log('all comments', allComments)
+              setProposalComments(allComments)
+        }
+
+        fetchAllComments()
+        .then((res) => {
+          console.log('comments exist', res)
         })
 
 
@@ -454,16 +582,22 @@ export default function App() {
 
   async function getCurrentPeriod() {
     let period = await window.contract.getCurrentPeriod()
-    setCurrentPeriod(period)    
+    setCurrentPeriod(period)
   }
 
   if(initialized) {
-    window.setInterval(getCurrentPeriod, 5000)
+    window.setInterval(getCurrentPeriod, 1000)
   }
 
   // if not done loading all the data, show a progress bar, otherwise show the content
+
   if(!done) {
-    return <LinearProgress />
+    return (
+      <div>
+      <Typography component="h2">Just setting things up, please wait a moment.</Typography>
+      <LinearProgress  />
+      </div>
+    )
   } else {
     if(!initialized) {
       return (
@@ -488,12 +622,19 @@ export default function App() {
           handleProposalEventChange={handleProposalEventChange}
           handleEscrowBalanceChanges={handleEscrowBalanceChanges}
           handleGuildBalanceChanges={handleGuildBalanceChanges}
+          handleUserBalanceChanges={handleUserBalanceChanges}
           currentPeriod={currentPeriod}
+          periodDuration={periodDuration}
           memberStatus={memberStatus}
+          memberInfo={memberInfo}
           tokenName='VPC'
           proposalEvents={proposalEvents}
           depositToken={depositToken}
+          tributeToken={tributeToken}
+          tributeOffer={tributeOffer}
+          processingReward={processingReward}
           proposalDeposit={proposalDeposit}
+          proposalComments={proposalComments}
           summoner={summoner}
 
           />

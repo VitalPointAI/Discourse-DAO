@@ -15,6 +15,12 @@ export const proposals = new PersistentVector<Proposal>('p') // array of proposa
 export const proposalQueue = new PersistentVector<i32>('pq') // proposal queue
 export const approvedTokens = new PersistentVector<AccountId>('a') // array of approvedtokens
 
+// store all unique comments
+export const comments = new PersistentVector<Comment>("c");
+
+// store all comments of a particular author
+export const indivComments = new PersistentMap<string, Comment>("ic");
+
 
 @nearBindgen
 export class Votes {
@@ -86,6 +92,8 @@ export class Proposal {
     f: Array<bool>; // [sponsored, processed, didPass, cancelled, whitelist, guildkick
     mT: i32; // the maximum # of total shares encountered at a yes vote on this proposal
     pS: u64; // blockindex when proposal was submitted
+    vP: i32;
+    gP: i32;
 
     constructor (
         proposalIdentifier: i32, // id to link record to proposal details
@@ -103,7 +111,9 @@ export class Proposal {
         noVotes: i32, // the total number of NO votes for this proposal
         flags: Array<bool>, // [sponsored, processed, didPass, cancelled, whitelist, guildkick
         maxTotalSharesAndLootAtYesVote: i32, // the maximum # of total shares encountered at a yes vote on this proposal
-        proposalSubmission: u64 // blockindex when proposal was submitted
+        proposalSubmission: u64, // blockindex when proposal was submitted
+        votingPeriod: i32,
+        gracePeriod: i32,
     ){
         this.pI = proposalIdentifier;
         this.a = applicant;
@@ -121,6 +131,8 @@ export class Proposal {
         this.f = flags;
         this.mT = maxTotalSharesAndLootAtYesVote;
         this.pS = proposalSubmission;
+        this.vP = votingPeriod;
+        this.gP = gracePeriod;
     }
 }
 
@@ -143,3 +155,87 @@ export class IncAllowanceArgs {
 export class BalanceArgs {
    account: string;
 }
+
+// App Textile Database Models
+
+@nearBindgen
+export class AppIdentity {
+    appId: string;
+    identity: string; //PrivateKey string of key
+    threadId: string;
+    appNumber: string;
+    status: string;
+}
+
+// App Definitions
+@nearBindgen
+export class App {
+    appNumber: string; //App ID
+    appId: string; // App Title
+    appCreatedDate: string;
+    status: string;
+}
+
+@nearBindgen
+export class AppsArray {
+    apps: Array<string[]>;
+    len: i32;
+}
+
+@nearBindgen
+export class AppMetaData {
+    applog: Array<string>;
+}
+
+// User Identities
+@nearBindgen
+export class UserIdentity {
+    account: string;
+    identity: string; //PrivateKey string of key
+    threadId: string;
+    memberId: string;
+    status: string;
+}
+
+// Member Definitions
+@nearBindgen
+export class daoMember {
+    memberId: string;
+    memberAccount: string;
+    memberRole: string;
+    memberJoinDate: string;
+    status: string;
+    profilePrivacy: string;
+}
+
+@nearBindgen
+export class daoMembersArray {
+    members: Array<string[]>;
+    len: i32;
+}
+
+@nearBindgen
+export class daoMemberMetaData {
+    memberlog: Array<string>;
+}
+
+// Comments Models
+@nearBindgen
+export class Comment {
+    commentAuthor: string;
+    commentId: string;
+    commentParent: string;
+    published: string;
+}
+
+// @nearBindgen
+// export class CommentMetaData {
+//     commentData: Array<string>;
+//     len: i32;
+// }
+
+// @nearBindgen
+// export class CommentArray {
+//     comments: Array<string[]>;
+//     len: i32;
+// }

@@ -1,15 +1,15 @@
   
 
-import { Context, storage, logging, env, u128, ContractPromise, PersistentVector } from "near-sdk-as"
+import { Context, storage, logging, env, u128, ContractPromise, PersistentVector, PersistentMap } from "near-sdk-as"
 import { 
   AccountId, 
-  periodDuration, 
-  votingPeriodLength, 
-  gracePeriodLength, 
-  proposalDeposit, 
-  dilutionBound, 
-  processingReward,
-  minSharePrice
+  PeriodDuration, 
+  VotingPeriodLength, 
+  GracePeriodLength, 
+  ProposalDeposit, 
+  DilutionBound, 
+  ProcessingReward,
+  MinSharePrice
 } from './dao-types'
 import { 
   userTokenBalances,
@@ -29,7 +29,17 @@ import {
   userTokenBalanceInfo,
   votesByMember,
   Votes,
-  TokenBalances
+  TokenBalances,
+  AppMetaData,
+  AppIdentity,
+  App,
+  UserIdentity,
+  daoMember,
+  daoMemberMetaData,
+  daoMembersArray,
+  Comment,
+  comments,
+  indivComments
  } from './dao-models'
 
 import {
@@ -110,6 +120,16 @@ import {
   withdrawlEvent,
 } from './dao-events'
 
+// Textile App Database Structures
+// store app identities
+let appIdentity = new PersistentMap<string, AppIdentity>("ai");
+let apps = new PersistentVector<string>("a");
+let appProfile = new PersistentMap<string, AppMetaData>("ad");
+
+// store user identity
+let userIdentity = new PersistentMap<string, UserIdentity>("ui");
+let daoMembers = new PersistentVector<string>("dm");
+let daoMemberProfile = new PersistentMap<string, daoMemberMetaData>("md");
 
 // HARD-CODED LIMITS
 // These numbers are quite arbitrary; they are small enough to avoid overflows when doing calculations
@@ -134,10 +154,383 @@ let usedStorage: u64 //accumulating storage
 let totalGuildBankTokens: i32 // total tokens with non-zero balance in guild bank
 
 let depositToken: AccountId
+let gProposalDeposit: i32
+let gProcessingReward: i32
+let gVotingPeriodLength: i32
+let gGracePeriodLength: i32
+
 
 const GUILD: AccountId = 'guild.vitalpointai.testnet'
 const ESCROW: AccountId = 'escrow.vitalpointai.testnet'
 const TOTAL: AccountId = 'total.vitalpointai.testnet'
+
+// ********************
+// Textile App Setup
+// ********************
+
+// Create new Identity for App ThreadsDB
+export function setAppData(app: App): void {
+  let _appNumber = getAppData(app.appNumber);
+  logging.log('setting member data')
+  logging.log(_appNumber)
+  if(_appNumber == null) {
+    _appNumber = new Array<string>();
+    _appNumber.push(app.appNumber); 
+    _appNumber.push(app.appId);
+    _appNumber.push(app.appCreatedDate);
+    _appNumber.push(app.status);
+    logging.log(_appNumber)
+  } else {
+    let present = false;
+    let appNumberLength = _appNumber.length
+    let i = 0
+    while (i < appNumberLength) {
+      if (_appNumber[0] == app.appNumber) {
+        present = true;
+        break;
+      }
+      i++
+    }
+    if (!present) {
+      _appNumber.push(app.appNumber); 
+      _appNumber.push(app.appId);
+      _appNumber.push(app.appCreatedDate);
+      _appNumber.push(app.status);
+    }
+  }
+  let appData = new AppMetaData();
+  appData.applog = _appNumber;
+  appProfile.set(app.appNumber, appData);
+  logging.log(appProfile);
+  logging.log(app.appNumber);
+  logging.log(appData);
+}
+
+function _addNewApp(appNumber: string): void {
+  let present = false;
+  let appLength = apps.length
+  let i = 0
+  while (i < appLength ) {
+    if (apps[i] == appNumber) {
+      present = true;
+    }
+    i++
+  }
+  if (!present) {
+    apps.push(appNumber);
+  }
+}
+
+export function getAppData(appNumber: string): Array<string> {
+  let app = appProfile.get(appNumber);
+  logging.log('getting app data')
+  logging.log(app)
+  if(!app) {
+    return new Array<string>();
+  }
+  let appData = app.applog;
+  return appData;
+}
+
+export function setAppIdentity(appId: string, identity: string, threadId: string, status: string): void {
+  let present = false;
+  logging.log('apps vector');
+  logging.log(apps);
+  let appsLength = apps.length
+  let i = 0
+  while (i < appsLength) {
+    if (apps[i] == appId) {
+      present = true;
+      break;
+    }
+    i++
+  }
+    if (!present) {
+      let thisAppNumber = appsLength + 1;
+      let newAppIdentity = new AppIdentity();
+      newAppIdentity.appId = appId;
+      newAppIdentity.identity = identity;
+      newAppIdentity.threadId = threadId;
+      newAppIdentity.appNumber = thisAppNumber.toString();
+      newAppIdentity.status = status;
+      appIdentity.set(appId, newAppIdentity);
+    } else {
+      logging.log('app already has an identity set');
+    }
+}
+
+export function getAppIdentity(appId: string): AppIdentity {
+  let identity = appIdentity.getSome(appId);
+  logging.log('getting app identity');
+  logging.log(identity);
+  return identity;
+}
+
+export function registerApp(
+  appNumber: string,
+  appId: string,
+  appCreatedDate: string,
+  status: string
+  ): App {
+  logging.log("registering app");
+  return _registerApp(
+    appNumber,
+    appId,
+    appCreatedDate,
+    status
+  );
+  }
+  
+function _registerApp(
+  appNumber: string,
+  appId: string,
+  appCreatedDate: string,
+  status: string
+): App {
+  logging.log("start registering new app");
+  let app = new App();
+  app.appNumber = appNumber;
+  app.appId = appId;
+  app.appCreatedDate = appCreatedDate;
+  app.status = status;
+  setAppData(app);
+  _addNewApp(appId);
+  logging.log("registered new app");
+  return app;
+}
+
+// Create new User Identities for ThreadsDB
+  
+export function setIdentity(account: string, identity: string, threadId: string, status: string): void {
+  let present = false;
+  logging.log('members vector');
+  logging.log(daoMembers);
+  let daoMembersLength = daoMembers.length
+  let i = 0
+  while (i < daoMembersLength) {
+    if (daoMembers[i] == account) {
+      present = true;
+      break;
+    }
+    i++
+  }
+    if (!present) {
+      let thisMemberId = daoMembersLength + 1;
+      let newId = new UserIdentity();
+      newId.account = account;
+      newId.identity = identity;
+      newId.threadId = threadId;
+      newId.memberId = thisMemberId.toString();
+      newId.status = status;
+      userIdentity.set(Context.sender, newId);
+    } else {
+      logging.log('member already has an identity set');
+    }
+}
+
+export function getIdentity(account: string): UserIdentity {
+  let identity = userIdentity.getSome(account);
+  logging.log('getting identity');
+  logging.log(identity);
+  return identity;
+}
+
+export function registerMember(
+  memberId: string,
+  memberAccount: string,
+  memberRole: string,
+  memberJoinDate: string,
+  status: string
+  ): daoMember {
+  logging.log("registering member");
+  return _registerMember(
+    memberId,
+    memberAccount,
+    memberRole,
+    memberJoinDate,
+    status
+  );
+}
+
+function _registerMember(
+  memberId: string,
+  memberAccount: string,
+  memberRole: string,
+  memberJoinDate: string,
+  status: string
+): daoMember {
+  logging.log("start registering new dao member");
+  let member = new daoMember();
+  member.memberId = memberId;
+  member.memberAccount = memberAccount;
+  member.memberRole = memberRole;
+  member.memberJoinDate = memberJoinDate;
+  member.status = status;
+  setDaoMemberData(member);
+  _addNewDaoMember(memberId);
+  logging.log("registered new dao member");
+  return member;
+}
+
+export function setDaoMemberData(member: daoMember): void {
+  let _memberId = getDaoMemberData(member.memberId);
+  logging.log('setting dao member data')
+  logging.log(_memberId)
+  if(_memberId == null) {
+    _memberId = new Array<string>();
+    _memberId.push(member.memberId); 
+    _memberId.push(member.memberAccount);
+    _memberId.push(member.memberRole);
+    _memberId.push(member.memberJoinDate);
+    _memberId.push(member.status);
+    logging.log(_memberId)
+  } else {
+    let present = false;
+    let _memberIdLength = _memberId.length
+    let i = 0
+    while (i < _memberIdLength) {
+      if (_memberId[0] == member.memberId) {
+        present = true;
+        break;
+      }
+      i++
+    }
+    if (!present) {
+    _memberId.push(member.memberId);
+    _memberId.push(member.memberAccount);
+    _memberId.push(member.memberRole);
+    _memberId.push(member.memberJoinDate);
+    _memberId.push(member.status);
+    }
+  }
+  let memberData = new daoMemberMetaData();
+  memberData.memberlog = _memberId;
+  daoMemberProfile.set(member.memberId, memberData);
+  logging.log(daoMemberProfile);
+  logging.log(member.memberId);
+  logging.log(memberData);
+}
+
+function _addNewDaoMember(memberId: string): void {
+  let present = false;
+  let daoMembersLength = daoMembers.length
+  let i = 0
+  while (i < daoMembersLength) {
+    if (daoMembers[i] == memberId) {
+      present = true;
+    }
+    i++
+  }
+  if (!present) {
+    daoMembers.push(memberId);
+  }
+}
+
+export function getDaoMemberData(memberId: string): Array<string> {
+  let member = daoMemberProfile.get(memberId);
+  logging.log('getting dao member data')
+  logging.log(member)
+  if(!member) {
+    return new Array<string>();
+  }
+  let memberData = member.memberlog;
+  return memberData;
+}
+
+// *********************
+// COMMENT FUNCTIONALITY
+// *********************
+
+// Methods for Individual Comments
+export function getComment(commentId: string): Comment {
+  let comment = indivComments.getSome(commentId);
+  return comment;
+}
+
+export function getCommentLength(): i32 {
+  return comments.length
+}
+
+export function setComment(comment: Comment): void {
+  indivComments.set(comment.commentId, comment);
+}
+
+export function addComment(
+  commentId: string,
+  commentParent: string,
+  published: string
+): Comment {
+  logging.log("adding comment");
+  return _addComment(
+    commentId,
+    commentParent,
+    published
+  );
+}
+
+function _addComment(
+  commentId: string,
+  commentParent: string,
+  published: string
+): Comment {
+  logging.log("start adding new comment");
+  let comment = new Comment();
+  comment.commentId = commentId;
+  comment.commentAuthor = Context.sender;
+  comment.commentParent = commentParent;
+  comment.published = published;
+  let present = false;
+  let commentsLength = comments.length
+  let i = 0
+  while(i < commentsLength) {
+    if (comments[i].commentId == commentId) {
+      present = true;
+    }
+    i++
+  }
+  if (!present) {
+    comments.push(comment);
+  }
+  logging.log("added comment");
+  setComment(comment)
+  logging.log("added indiv comment")
+  return comment;
+}
+
+
+export function deleteComment(commentId: string): void {
+  indivComments.delete(commentId);
+}
+
+/**
+ * returns all Comments
+ */
+export function getAllComments(): Array<Comment> {
+  let _commentList = new Array<Comment>();
+  let commentsLength = comments.length;
+  let i = 0
+  while (i < commentsLength) {
+    _commentList.push(comments[i])
+    i++
+  }
+  return _commentList;
+}
+
+/**
+ * returns specific proposal Comments
+ */
+export function getProposalComments(proposalId: string): Array<Comment> {
+  let _commentList = new Array<Comment>();
+  let commentsLength = comments.length;
+  let i = 0
+  while (i < commentsLength) {
+    if(comments[i].commentParent == proposalId){
+    _commentList.push(comments[i])
+    }
+    i++
+  }
+  return _commentList;
+}
 
 // ********************
 // MODIFIERS
@@ -204,66 +597,69 @@ export function onlyDelegate(delegate: AccountId): boolean {
 
 export function init(
     _approvedTokens: Array<string>,
-    periodDuration: periodDuration,
-    votingPeriodLength: votingPeriodLength,
-    gracePeriodLength: gracePeriodLength,
-    proposalDeposit: proposalDeposit,
-    dilutionBound: dilutionBound,
-    processingReward: processingReward,
-    minSharePrice: minSharePrice
+    _periodDuration: PeriodDuration,
+    _votingPeriodLength: VotingPeriodLength,
+    _gracePeriodLength: GracePeriodLength,
+    _proposalDeposit: ProposalDeposit,
+    _dilutionBound: DilutionBound,
+    _processingReward: ProcessingReward,
+    _minSharePrice: MinSharePrice
 ): boolean {
   assert(storage.get<string>("init") == null, ERR_DAO_ALREADY_INITIALIZED)
-  assert(periodDuration > 0, ERR_MUSTBE_GREATERTHAN_ZERO)
-  assert(votingPeriodLength > 0, ERR_MUSTBE_GREATERTHAN_ZERO)
-  assert(votingPeriodLength <= MAX_VOTING_PERIOD_LENGTH, ERR_MUSTBELESSTHAN_MAX_VOTING_PERIOD_LENGTH)
-  assert(gracePeriodLength <= MAX_GRACE_PERIOD_LENGTH, ERR_MUSTBELESSTHAN_MAX_GRACE_PERIOD_LENGTH)
-  assert(dilutionBound > 0, ERR_DILUTIONBOUND_ZERO)
-  assert(dilutionBound <= MAX_DILUTION_BOUND, ERR_DILUTIONBOUND_LIMIT)
+  assert(_periodDuration > 0, ERR_MUSTBE_GREATERTHAN_ZERO)
+  assert(_votingPeriodLength > 0, ERR_MUSTBE_GREATERTHAN_ZERO)
+  assert(_votingPeriodLength <= MAX_VOTING_PERIOD_LENGTH, ERR_MUSTBELESSTHAN_MAX_VOTING_PERIOD_LENGTH)
+  assert(_gracePeriodLength <= MAX_GRACE_PERIOD_LENGTH, ERR_MUSTBELESSTHAN_MAX_GRACE_PERIOD_LENGTH)
+  assert(_dilutionBound > 0, ERR_DILUTIONBOUND_ZERO)
+  assert(_dilutionBound <= MAX_DILUTION_BOUND, ERR_DILUTIONBOUND_LIMIT)
   assert(_approvedTokens.length > 0, ERR_APPROVEDTOKENS)
   assert(_approvedTokens.length <= MAX_TOKEN_WHITELIST_COUNT, ERR_TOO_MANY_TOKENS)
-  assert(proposalDeposit >= processingReward, ERR_PROPOSAL_DEPOSIT)
-  assert(minSharePrice > 0, ERR_MUSTBE_GREATERTHAN_ZERO)
+  assert(_proposalDeposit >= _processingReward, ERR_PROPOSAL_DEPOSIT)
+  assert(_minSharePrice > 0, ERR_MUSTBE_GREATERTHAN_ZERO)
 
   depositToken = _approvedTokens[0]
+  
 
   storage.set<string>('depositToken', depositToken)
 
-  for (let i: u64 = 0; i < <u64>_approvedTokens.length; i++) {
-    assert(env.isValidAccountID(_approvedTokens[<i32>i]), ERR_INVALID_ACCOUNT_ID)
-    if(tokenWhiteList.contains(_approvedTokens[<i32>i])) {
-      assert(!tokenWhiteList.getSome(_approvedTokens[<i32>i]), ERR_DUPLICATE_TOKEN)
+  for (let i: i32 = 0; i < _approvedTokens.length; i++) {
+    assert(env.isValidAccountID(_approvedTokens[i]), ERR_INVALID_ACCOUNT_ID)
+    if(tokenWhiteList.contains(_approvedTokens[i])) {
+      assert(!tokenWhiteList.getSome(_approvedTokens[i]), ERR_DUPLICATE_TOKEN)
     } else {
-      tokenWhiteList.set(_approvedTokens[<i32>i], true)
+      tokenWhiteList.set(_approvedTokens[i], true)
     }
-    approvedTokens.push(_approvedTokens[<i32>i])
+    approvedTokens.push(_approvedTokens[i])
   }
   
   //set Summoner
   storage.set<string>('summoner', Context.predecessor)
 
   //set periodDuration
-  storage.set<i32>("periodDuration", periodDuration)
+  
+  storage.set<i32>('periodDuration', _periodDuration)
 
   //set votingPeriodLength
-  storage.set<i32>('votingPeriodLength', votingPeriodLength)
+  storage.set<i32>('votingPeriodLength', _votingPeriodLength)
 
   //set gracePeriodLength
-  storage.set<i32>('gracePeriodLength', gracePeriodLength)
+  storage.set<i32>('gracePeriodLength', _gracePeriodLength)
 
   //set proposalDeposit
-  storage.set<i32>('proposalDeposit', proposalDeposit)
+  storage.set<i32>('proposalDeposit', _proposalDeposit)
 
   //set dilutionBound
-  storage.set<i32>('dilutionBound', dilutionBound)
+  storage.set<i32>('dilutionBound', _dilutionBound)
 
   //set processingReward
-  storage.set<i32>('processingReward', processingReward)
+  storage.set<i32>('processingReward', _processingReward)
 
+  logging.log('context timestamp' + Context.blockTimestamp.toString())
   //set summoning Time
-  storage.set<u64>('summoningTime', Context.blockIndex)
+  storage.set<u64>('summoningTime', Context.blockTimestamp)
 
   //set minimum share price
-  storage.set<i32>('minSharePrice', minSharePrice)
+  storage.set<i32>('minSharePrice', _minSharePrice)
 
   //set initial Guild/Escrow/Total address balances
 
@@ -281,7 +677,7 @@ export function init(
   //set init to done
   storage.set<string>("init", "done")
 
-  summonCompleteEvent(Context.predecessor, _approvedTokens, Context.blockIndex, periodDuration, votingPeriodLength, gracePeriodLength, proposalDeposit, dilutionBound, processingReward)
+  summonCompleteEvent(Context.predecessor, _approvedTokens, Context.blockTimestamp, _periodDuration, _votingPeriodLength, _gracePeriodLength, _proposalDeposit, _dilutionBound, _processingReward)
   
   return true
 }
@@ -292,38 +688,60 @@ export function init(
 /*********************/
 
 function _unsafeAddToBalance(account: AccountId, token: AccountId, amount: i32): void {
-  for(let i: u64 = 0; i < <u64>userTokenBalances.length; i++) {
-    if(userTokenBalances[<i32>i].user == account && userTokenBalances[<i32>i].token == token) {
-      let userCurrent = userTokenBalances[<i32>i].balance
-      let newUserAmount = userCurrent + amount
-      userTokenBalances.replace(<i32>i, {user: account, token: token, balance: newUserAmount})
-    } else if(userTokenBalances[<i32>i].user == TOTAL && userTokenBalances[<i32>i].token == token) {
-      let totalCurrent = userTokenBalances[<i32>i].balance
-      let newTotalAmount = totalCurrent + amount
-      userTokenBalances.replace(<i32>i, {user: TOTAL, token: token, balance: newTotalAmount})
-    } else {
-      userTokenBalances.push({user: account, token: token, balance: amount})
-    }
+  logging.log('unsafe add account ' + account)
+  logging.log('unsafe add token ' + token)
+  logging.log('unsafe add amount ' + amount.toString())
+
+  if(_userTokenBalanceExists(account, token)){
+    let index = getUserTokenBalanceIndex(account, token)
+    logging.log('unsafe add account/token index '+ index.toString())
+  
+    let record = userTokenBalances[index]
+    logging.log('unsafe add record ' + record.user)
+    logging.log('balance before add ' + record.balance.toString())
+    record.balance += amount
+    logging.log('balance after add ' + record.balance.toString())
+    userTokenBalances[index] = record
+  } else {
+    userTokenBalances.push({user: account, token: token, balance: amount})
   }
+
+  let totalIndex = getUserTokenBalanceIndex(TOTAL, token)
+  let totalRecord = userTokenBalances[totalIndex]
+  totalRecord.balance += amount
+  userTokenBalances[totalIndex] = totalRecord
 }
 
 function _unsafeSubtractFromBalance(account: AccountId, token: AccountId, amount: i32): void {
-  for(let i: u64 = 0; i < <u64>userTokenBalances.length; i++) {
-    if(userTokenBalances[<i32>i].user == account && userTokenBalances[<i32>i].token == token) {
-      let userCurrent = userTokenBalances[<i32>i].balance
-      let newUserAmount = userCurrent - amount
-      userTokenBalances.replace(<i32>i, {user: account, token: token, balance: newUserAmount})
-    }
-    if(userTokenBalances[<i32>i].user == TOTAL && userTokenBalances[<i32>i].token == token) {
-      let totalCurrent = userTokenBalances[<i32>i].balance
-      let newTotalAmount = totalCurrent - amount
-      userTokenBalances.replace(<i32>i, {user: TOTAL, token: token, balance: newTotalAmount})
-    }
+  logging.log('unsafe subtract account ' + account)
+  logging.log('unsafe subrract token ' + token)
+  logging.log('unsafe subtract amount ' + amount.toString())
+
+  if(_userTokenBalanceExists(account, token)){
+    let index = getUserTokenBalanceIndex(account, token)
+    logging.log('subtract index '+ index.toString())
+    
+    let record = userTokenBalances[index]
+    logging.log('unsafe subtract record ' + record.user)
+
+    logging.log('balance before subtract ' + record.balance.toString())
+    record.balance -= amount
+    logging.log('balance after subtract ' + record.balance.toString())
+    userTokenBalances[index] = record
+  
+    let totalIndex = getUserTokenBalanceIndex(TOTAL, token)
+    let totalRecord = userTokenBalances[totalIndex]
+    totalRecord.balance -= amount
+    userTokenBalances[totalIndex] = totalRecord
   }
 }
 
 
 function _unsafeInternalTransfer(from: AccountId, to: AccountId, token: AccountId, amount: i32): void {
+  logging.log('from ' + from)
+  logging.log('to ' + to)
+  logging.log('token ' + token)
+  logging.log('amount ' + amount.toString())
   _unsafeSubtractFromBalance(from, token, amount)
   _unsafeAddToBalance(to, token, amount)
 }
@@ -346,21 +764,21 @@ function hasVotingPeriodExpired(sP: i32): bool {
 
 function _vPP(proposalIndex: i32): Proposal {
   assert(proposalIndex < proposalQueue.length, ERR_PROPOSAL_NO)
-  let proposal = proposals[proposalQueue[proposalIndex]]
-  let firstAdd = proposal.sP + storage.getSome<i32>('votingPeriodLength')
-  assert(getCurrentPeriod() >= (firstAdd + storage.getSome<i32>('gracePeriodLength')), ERR_NOT_READY)
+ // let proposal = proposals[proposalQueue[proposalIndex]]
+  let proposal = proposals[proposalIndex]
+  let firstAdd = proposal.sP + storage.getSome<i32>('votingPeriodLength') 
+  assert(getCurrentPeriod() >= firstAdd + storage.getSome<i32>('gracePeriodLength'), ERR_NOT_READY)
   assert(proposal.f[1] == false, ERR_PROPOSAL_PROCESSED)
   assert(proposalIndex == 0 || proposals[proposalQueue[proposalIndex - 1]].f[1], ERR_PREVIOUS_PROPOSAL)
   return proposal
 }
 
 function _didPass(proposal: Proposal): bool {
- // let proposal = proposals[proposalQueue[proposalIndex]]
 
   let didPass = proposal.yV > proposal.nV
 
   // Make the proposal fail if the dilutionBound is exceeded 
-  if(((totalShares + totalLoot) * storage.getSome<i32>('dilutionBound')) < proposal.mT) {
+  if((totalShares + totalLoot) * storage.getSome<i32>('dilutionBound') < proposal.mT) {
     didPass = false
   }
 
@@ -378,8 +796,13 @@ function _didPass(proposal: Proposal): bool {
 
 
 function _returnDeposit(s: AccountId): void {
-  _unsafeInternalTransfer(ESCROW, Context.predecessor, depositToken, storage.getSome<i32>('processingReward'))
-  _unsafeInternalTransfer(ESCROW, s, depositToken, storage.getSome<i32>('proposalDeposit') - storage.getSome<i32>('processingReward'))
+  let thisProposalDeposit = storage.getSome<i32>('proposalDeposit')
+  let thisProcessingReward = storage.getSome<i32>('processingReward')
+  let thisDepositToken = storage.getSome<string>('depositToken')
+  _unsafeInternalTransfer(ESCROW, Context.predecessor, thisDepositToken, thisProcessingReward)
+
+  let result = thisProposalDeposit - thisProcessingReward
+  _unsafeInternalTransfer(ESCROW, s, thisDepositToken, result)
 }
 
 export function ragequit(sharesToBurn: i32, lootToBurn: i32): void {
@@ -405,12 +828,14 @@ function _ragequit(memberAddress: AccountId, sharesToBurn: i32, lootToBurn: i32)
   totalShares = totalShares - sharesToBurn
   totalLoot = totalLoot - lootToBurn
 
-  for(let i: u64 = 0; i < <u64>approvedTokens.length; i++) {
-    let amountToRagequit = _fairShare(getUserTokenBalance(GUILD, approvedTokens[<i32>i]), sharesAndLootToBurn, initialTotalSharesAndLoot)
+  let approvedTokensLength = approvedTokens.length
+  let i = 0
+  while (i < approvedTokensLength) {
+    let amountToRagequit = _fairShare(getUserTokenBalance(GUILD, approvedTokens[i]), sharesAndLootToBurn, initialTotalSharesAndLoot)
     if (amountToRagequit > 0) { //gas optimization to allow a higher maximum token limit
       //deliberately not using safemath here to keep overflows from preventing the function execution (which would break ragekicks)
       //if a token overflows, it is because the supply was artificially inflated to oblivion, so we probably don't care about it anyways
-      let current =  getUserTokenBalance(GUILD, approvedTokens[<i32>i])
+      let current =  getUserTokenBalance(GUILD, approvedTokens[i])
       let modifiedDown = current - amountToRagequit
       let modifiedUp = current + amountToRagequit
 
@@ -418,21 +843,22 @@ function _ragequit(memberAddress: AccountId, sharesToBurn: i32, lootToBurn: i32)
       newTokenBalance.user = GUILD
       newTokenBalance.token = approvedTokens[<i32>i]
       newTokenBalance.balance = modifiedDown
-      let downUserIndex = getUserTokenBalanceIndex(GUILD)
+      let downUserIndex = getUserTokenBalanceIndex(GUILD, approvedTokens[i])
       if(downUserIndex >= 0) {
         userTokenBalances.replace(downUserIndex, newTokenBalance)
       }
 
       let upTokenBalance = new userTokenBalanceInfo()
       upTokenBalance.user = memberAddress
-      upTokenBalance.token = approvedTokens[<i32>i]
+      upTokenBalance.token = approvedTokens[i]
       upTokenBalance.balance = modifiedUp
-      let upUserIndex = getUserTokenBalanceIndex(memberAddress)
+      let upUserIndex = getUserTokenBalanceIndex(memberAddress, approvedTokens[<i32>i])
       if(upUserIndex >= 0) {
         userTokenBalances.replace(upUserIndex, newTokenBalance)
       }
     }
   }
+
   rageQuitEvent(Context.predecessor, sharesToBurn, lootToBurn)
 }
 
@@ -464,13 +890,11 @@ export function withdrawBalance(token: AccountId, amount: i32): void {
 
 export function withdrawBalances(tokens: Array<AccountId>, amounts: Array<i32>, all: bool = false): void {
   assert(tokens.length == amounts.length, ERR_MUST_MATCH)
-
-  for(let i: u64 = 0; i < <u64>tokens.length; i++) {
+  for(let i: u64 = 0, cpTokensLength: u64 = tokens.length; i < cpTokensLength; i++) {
     let withdrawAmount = amounts[<i32>i]
     if(all) { // withdraw maximum balance
       withdrawAmount = getUserTokenBalance(Context.predecessor, tokens[<i32>i])
     }
-
     _withdrawBalance(tokens[<i32>i], withdrawAmount)
   }
 }
@@ -587,6 +1011,11 @@ export function cancelProposal(pI: i32): void {
   //proposals.replace(pI, proposal)  
   proposals[pI] = proposal
 
+  let index = getProposalEventsIndex(pI)
+  let proposalEvent = submitProposalEvents[index]
+  proposalEvent.f = f
+  submitProposalEvents[index] = proposalEvent
+
   _unsafeInternalTransfer(ESCROW, proposal.p, proposal.tT, proposal.tO)
   cancelProposalEvent(pI, Context.predecessor)
 }
@@ -643,11 +1072,35 @@ export function getProposalDeposit(): i32 {
   return storage.getSome<i32>("proposalDeposit")
 }
 
+export function getPeriodDuration(): i32 {
+  return storage.getSome<i32>("periodDuration")
+}
+
+export function getProcessingReward(): i32 {
+  return storage.getSome<i32>("processingReward")
+}
+
 export function getMemberStatus(member: AccountId): bool {
   if(members.get(member)){
     return true
   }
   return false
+}
+
+export function getMemberShares(member: AccountId): i32 {
+  if(members.get(member) != null) {
+    let shares = members.getSome(member).shares
+    return shares
+  }
+  return 0
+}
+
+export function getMemberLoot(member: AccountId): i32 {
+  if(members.get(member) != null) {
+    let loot = members.getSome(member).loot
+    return loot
+  }
+  return 0
 }
 
 export function getMemberInfo(member: AccountId): Array<Member> {
@@ -658,33 +1111,29 @@ export function getMemberInfo(member: AccountId): Array<Member> {
 }
 
 export function getCurrentPeriod(): i32 {
-  let summonTime = storage.getSome<u64>('summoningTime') // blockIndex that dao was summoned
-  let pd = storage.getSome<i32>('periodDuration') // duration in seconds for each period
+  let summonTime = storage.getSome<u64>('summoningTime') // blocktimestamp that dao was summoned
+  let pd:u64 = <u64>storage.getSome<i32>('periodDuration') * 1000000000 // duration converted to nanoseconds for each period
   if(pd != 0) {
-    return <i32>((Context.blockIndex - summonTime) / pd)
+    let interim = Context.blockTimestamp - summonTime
+    let result = interim / pd
+    return <i32>result
   }
   return 0
 }
 
-export function isVotingPeriod(pI: i32): bool {
-  let proposal = proposals[pI]
-  if((getCurrentPeriod() <= (proposal.sP + storage.getSome<i32>('votingPeriodLength'))) && getCurrentPeriod() >= proposal.sP){
-    return true
-  } else {
-    return false
+export function getProposalEventsIndex(pI: i32): i32 {
+  let submitProposalEventsLength = submitProposalEvents.length
+  let i = 0
+  while (i < submitProposalEventsLength) {
+    if (submitProposalEvents[i].pI == pI) {
+      return i
+    }
+    i++
   }
+  return -1
 }
 
-export function isGracePeriod(pI: i32): bool {
-  let proposal = proposals[pI]
-  let votingPeriod = proposal.sP + storage.getSome<i32>('votingPeriodLength')
-  let endGP = votingPeriod + storage.getSome<i32>('gracePeriodLength')
-  if(getCurrentPeriod() <= endGP && getCurrentPeriod() > votingPeriod){
-    return true
-  } else {
-    return false
-  }
-}
+
 
 export function getProposalQueueLength(): i32 {
   return proposalQueue.length
@@ -695,10 +1144,13 @@ export function getProposalFlags(pI: i32): bool[] {
 }
 
 export function getUserTokenBalance(user: AccountId, token: AccountId): i32 {
-  for(let i: u64 = 0; i < <u64>userTokenBalances.length; i++) {
+  let userTokenBalanceLength = userTokenBalances.length
+  let i = 0
+  while (i < userTokenBalanceLength ) {
     if(userTokenBalances[<i32>i].user == user && userTokenBalances[<i32>i].token == token) {
       return userTokenBalances[<i32>i].balance
     }
+    i++
   }
   return 0
 }
@@ -709,35 +1161,37 @@ export function getUserTokenBalanceObject(): PersistentVector<userTokenBalanceIn
 
 export function getGuildTokenBalances(): Array<TokenBalances> {
   let balances = new Array<TokenBalances>()
-  for (let i: u64 = 0; i < <u64>approvedTokens.length; i++) {
-    let balance = _getGuildIndivTokenBalances(approvedTokens[<i32>i])
-    balances.push({token: approvedTokens[<i32>i], balance: balance})
+  let approvedTokensLength = approvedTokens.length
+  let i = 0
+  while (i < approvedTokensLength) {
+    let balance = getUserTokenBalance(GUILD, approvedTokens[i])
+    logging.log('guild balance ' + balance.toString())
+    balances.push({token: approvedTokens[i], balance: balance})
+    i++
   }
   return balances
-}
-
-function _getGuildIndivTokenBalances(token: AccountId): i32 {
-  return getUserTokenBalance(GUILD, token)
 }
 
 export function getEscrowTokenBalances(): Array<TokenBalances> {
   let balances = new Array<TokenBalances>()
-  for (let i: u64 = 0; i < <u64>approvedTokens.length; i++) {
-    let balance = _getEscrowIndivTokenBalances(approvedTokens[<i32>i])
-    balances.push({token: approvedTokens[<i32>i], balance: balance})
+  let approvedTokensLength = approvedTokens.length
+  let i = 0
+  while (i < approvedTokensLength) {
+    let balance = getUserTokenBalance(ESCROW, approvedTokens[i])
+    balances.push({token: approvedTokens[i], balance: balance})
+    i++
   }
   return balances
 }
 
-function _getEscrowIndivTokenBalances(token: AccountId): i32 {
-  return getUserTokenBalance(ESCROW, token)
-}
-
 export function getMemberProposalVote(memberAddress: AccountId, pI: i32): string {
-  for(let i: u64 = 0; i < <u64>votesByMember.length; i++){
-    if(votesByMember[<i32>i].user == memberAddress && votesByMember[<i32>i].pI == pI){
-      return votesByMember[<i32>i].vote
+  let votesByMemberLength = votesByMember.length
+  let i = 0
+  while( i < votesByMemberLength ){
+    if(votesByMember[i].user == memberAddress && votesByMember[i].pI == pI){
+      return votesByMember[i].vote
     }
+    i++
   }
   return 'no vote yet'
 }
@@ -755,21 +1209,57 @@ export function getTokenCount(): i32 {
 }
 
 export function getProposalIndex(pI: i32): i32 {
-  for (let i: u64 = 0; i < <u64>proposals.length; i++) {
-    if (proposals[<i32>i].pI == pI) {
-      return <i32>i
+  let proposalsLength = proposals.length
+  logging.log('proposals length ' + proposalsLength.toString())
+  logging.log(' pi here ' + pI.toString())
+  let i = 0
+    while (i < proposalsLength) {
+      if (proposals[i].pI == pI) {
+        logging.log('i ' + i.toString())
+        return i
+      }
+      i++
     }
-  }
   return -1
 }
 
-export function getUserTokenBalanceIndex(user: AccountId): i32 {
-  for (let i: u64 = 0; i < <u64>userTokenBalances.length; i++) {
-    if (userTokenBalances[<i32>i].user == user) {
-      return <i32>i
+function _userTokenBalanceExists(user: AccountId, token: AccountId): bool {
+  let userTokenBalancesLength = userTokenBalances.length
+  let i = 0
+    while (i < userTokenBalancesLength) {
+      if (userTokenBalances[i].user == user && userTokenBalances[i].token == token) {
+        return true
+      }
+      i++
+  }
+  return false
+}
+
+
+export function getUserTokenBalanceIndex(user: AccountId, token: AccountId): i32 {
+  let userTokenBalancesLength = userTokenBalances.length
+  let i = 0
+  if (userTokenBalancesLength != 0) {
+    while (i < userTokenBalancesLength) {
+      if (userTokenBalances[i].user == user && userTokenBalances[i].token == token) {
+        return i
+      }
+      i++
     }
   }
-  return -1
+  return 0
+}
+
+function _memberProposalPresent(applicant: AccountId): bool {
+  let proposalsLength = proposals.length
+  let i = 0
+  while (i < proposalsLength) {
+    if (proposals[i].a == applicant && proposals[i].f[6] == true && (proposals[i].f[2] == true && proposals[i].f[1] == true)) {
+      return true
+    }
+    i++
+  }
+  return false
 }
 
 function _max(x: i32, y: i32): i32 {
@@ -781,9 +1271,12 @@ function _max(x: i32, y: i32): i32 {
  */
 export function getAllProposalEvents(): Array<SPE> {
   let _frList = new Array<SPE>();
-  if(submitProposalEvents.length != 0) {
-    for(let i: u64 = 0; i < <u64>submitProposalEvents.length; i++) {
-      _frList.push(submitProposalEvents[<i32>i]);
+  let submitProposalEventsLength = submitProposalEvents.length;
+  if(submitProposalEventsLength != 0) {
+    let i = 0
+    while (i < submitProposalEventsLength) {
+      _frList.push(submitProposalEvents[i])
+      i++
     }
   }
   return _frList;
@@ -808,6 +1301,7 @@ export function submitProposal (
   assert(tokenWhiteList.getSome(pT), ERR_NOT_WHITELISTED_PT)
   assert(env.isValidAccountID(a), ERR_INVALID_ACCOUNT_ID)
   assert(a != GUILD && a != ESCROW && a != TOTAL, ERR_RESERVED)
+
   if(members.get(a)!=null) {
     assert(members.getSome(a).jailed == 0, ERR_JAILED)
   }
@@ -816,11 +1310,11 @@ export function submitProposal (
     assert(totalGuildBankTokens < MAX_TOKEN_GUILDBANK_COUNT, ERR_FULL_GUILD_BANK)
   }
 
-  //_sT(tO, tT)  
+  _sT(tO, tT)  
 
   _unsafeAddToBalance(ESCROW, tT, tO)
 
-  let f = new Array<bool>(7) // [sed, processed, didPass, cancelled, whitelist, guildkick, member]
+  let f = new Array<bool>(7) // [sponsored, processed, didPass, cancelled, whitelist, guildkick, member]
   if(sR > 0){
     f[6] = true // member proposal
   }
@@ -839,26 +1333,28 @@ function _sT(tO: i32, tT: AccountId): void {
 }
 
 
-export function submitWhitelistProposal(tokenToWhitelist: string): void {
+export function submitWhitelistProposal(tokenToWhitelist: string): bool {
   assert(env.isValidAccountID(tokenToWhitelist), ERR_INVALID_ACCOUNT_ID)
   assert(!tokenWhiteList.getSome(tokenToWhitelist), ERR_ALREADY_WHITELISTED)
   assert(approvedTokens.length < MAX_TOKEN_WHITELIST_COUNT, ERR_TOO_MANY_WHITELISTED)
 
-  let f = new Array<bool>(7) // [sed, processed, didPass, cancelled, whitelist, guildkick]
+  let f = new Array<bool>(7) // [sponsored, processed, didPass, cancelled, whitelist, guildkick]
   f[4] = true; // whitelist
   _submitProposal('', 0, 0, 0, tokenToWhitelist, 0, '', f)
+  return true
 }
 
 
-export function submitGuildKickProposal(memberToKick: AccountId): void {
+export function submitGuildKickProposal(memberToKick: AccountId): bool {
   let member = members.getSome(memberToKick)
   assert(member.shares > 0 || member.loot > 0, ERR_SHAREORLOOT)
   assert(member.jailed == 0, ERR_JAILED)
 
-  let f = new Array<bool>(7) // [sed, processed, didPass, cancelled, whitelist, guildkick]
+  let f = new Array<bool>(7) // [sponsored, processed, didPass, cancelled, whitelist, guildkick]
   f[5] = true; // guild kick
   
   _submitProposal(memberToKick, 0, 0, 0, '', 0, '', f)
+  return true
 }
 
 
@@ -872,7 +1368,14 @@ function _submitProposal(
   pT: AccountId,
   f: Array<bool>
 ): void {
-  let pI = proposals.length    
+  let pI = proposals.length
+  logging.log('proposals length'+ pI.toString())
+
+  if (f[6]){
+    assert(members.get(a)==null, 'already a member')
+    assert(_memberProposalPresent(a) == false, 'member proposal already in progress')
+  }
+
   proposals.push(new Proposal(
     pI,
     a,
@@ -889,8 +1392,11 @@ function _submitProposal(
     0,
     f,
     0,
-    Context.blockIndex
+    Context.blockTimestamp,
+    0,
+    0
   ))
+  
   votesByMember.push({user: Context.predecessor, pI: pI, vote: ''})
   let mA: AccountId
   if(memberAddressByDelegatekey.get(Context.sender)!=null) {
@@ -899,7 +1405,7 @@ function _submitProposal(
     mA = Context.sender
   }
 
-  sPE(pI, a, sR, lR, tO, tT, pR, pT, f, Context.predecessor, mA, Context.blockIndex )
+  sPE(pI, a, sR, lR, tO, tT, pR, pT, f, Context.predecessor, mA, Context.blockTimestamp, 0, 0, 0, 0, 0)
 }
 
 
@@ -908,14 +1414,16 @@ export function sponsorProposal(pI: i32, proposalDeposit: i32, depositToken: Acc
   assert(onlyDelegate(Context.predecessor), 'not a delegate')
   // collect proposal deposit from s and store it in the Moloch until the proposal is processed
 
-  //_sT(proposalDeposit, depositToken)
+  _sT(proposalDeposit, depositToken)
 
   _unsafeAddToBalance(ESCROW, depositToken, proposalDeposit)
+  
+  let proposalIndex = getProposalIndex(pI)
+  let proposal = proposals[proposalIndex]
 
-  let proposal = proposals[pI]
   assert(proposal.pI == pI, 'not right proposal')
-  assert(env.isValidAccountID(proposal.p), 'invalid account ID')
-  assert(!proposal.f[0], 'already sed')
+  assert(env.isValidAccountID(proposal.p), 'invalid account ID and not proposed')
+  assert(!proposal.f[0], 'already sponsored')
   assert(!proposal.f[3], 'proposal cancelled')
  
   if(members.get(proposal.a)!=null){
@@ -940,12 +1448,15 @@ export function sponsorProposal(pI: i32, proposalDeposit: i32, depositToken: Acc
   }
 
   // compute starting period for proposal
-  let max: i32 = _max(
+  let max = _max(
     getCurrentPeriod(), 
     proposalQueue.length == 0 ? 0 : proposals[proposalQueue[proposalQueue.length - 1]].sP
   )
-  let sP: i32 = max + 1
-
+  let sP = max + 1
+  
+  let vP = sP + storage.getSome<i32>('votingPeriodLength')
+  let gP = sP + storage.getSome<i32>('votingPeriodLength') + storage.getSome<i32>('gracePeriodLength')
+  
   logging.log('proposal queue length '+ proposalQueue.length.toString())
   
   if(proposalQueue.length > 0){
@@ -962,9 +1473,21 @@ export function sponsorProposal(pI: i32, proposalDeposit: i32, depositToken: Acc
   proposal.f = f
   proposal.sP = sP
   proposal.s = memberAddress
+  proposal.vP = vP
+  proposal.gP = gP
   
   //proposals.replace(pI, proposal)  
-  proposals[pI] = proposal
+  proposals[proposalIndex] = proposal
+  logging.log('sponsor proposal flags ' + proposal.f.toString())
+
+  let index = getProposalEventsIndex(pI)
+  let proposalEvent = submitProposalEvents[index]
+  proposalEvent.f = f
+  proposalEvent.vP = vP
+  proposalEvent.gP = gP
+  proposalEvent.sP = sP
+  submitProposalEvents[index] = proposalEvent
+
   // append proposal to queue
   proposalQueue.push(pI)
   
@@ -982,11 +1505,17 @@ export function submitVote(pI: i32, vote: string): void {
   let member = members.getSome(memberAddress)
 
   assert(pI < proposalQueue.length, ERR_PROPOSAL_NO)
-  let proposal = proposals[proposalQueue[pI]]
-
+  let proposalIndex = getProposalIndex(pI)
+  let proposal = proposals[proposalIndex]
+  logging.log('proposalIndex ' + proposalIndex.toString())
+  logging.log('proposal pI ' + proposal.pI.toString())
+  logging.log('proposal sp' + proposal.sP.toString())
+  logging.log('current period ' + getCurrentPeriod().toString())
+  logging.log('proposal vP ' + proposal.vP.toString())
   assert(vote == 'abstain' || vote == 'yes' || vote=='no', ERR_VOTE_INVALID)
   assert(getCurrentPeriod() >= proposal.sP, ERR_VOTING_NOT_STARTED)
-  assert(!hasVotingPeriodExpired(proposal.sP), ERR_VOTING_PERIOD_EXPIRED)
+  assert(getCurrentPeriod() <= proposal.vP, ERR_VOTING_PERIOD_EXPIRED)
+  //assert(!hasVotingPeriodExpired(proposal.sP), ERR_VOTING_PERIOD_EXPIRED)
   
   let existingVote = getMemberProposalVote(Context.predecessor, pI)
 
@@ -998,8 +1527,8 @@ export function submitVote(pI: i32, vote: string): void {
     let newyV = proposal.yV + member.shares
 
     //set highest index (latest) yes vote - must be processed for member to ragequit
-    if(pI > member.highestIndexYesVote) {
-      member.highestIndexYesVote = pI
+    if(proposalIndex > member.highestIndexYesVote) {
+      member.highestIndexYesVote = proposalIndex
       members.set(memberAddress, new Member(
         member.delegateKey,
         member.shares, 
@@ -1020,15 +1549,25 @@ export function submitVote(pI: i32, vote: string): void {
     proposal.yV = newyV
     proposal.mT = newmT
   //  proposals.replace(pI, proposal)
-    proposals[pI] = proposal
+    proposals[proposalIndex] = proposal
+
+    let index = getProposalEventsIndex(pI)
+    let proposalEvent = submitProposalEvents[index]
+    proposalEvent.yV = newyV
+    submitProposalEvents[index] = proposalEvent
 
   } else if (vote == 'no') {
     let newnV = proposal.nV + member.shares
 
     proposal.nV = newnV
 
- //   proposals.replace(pI, proposal)
- proposals[pI] = proposal 
+    //   proposals.replace(pI, proposal)
+    proposals[proposalIndex] = proposal 
+
+    let index = getProposalEventsIndex(pI)
+    let proposalEvent = submitProposalEvents[index]
+    proposalEvent.nV = newnV
+    submitProposalEvents[index] = proposalEvent
   }
 
   // NOTE: subgraph indexes by proposalId not proposalIndex since proposalIndex isn't set until it's been sed but proposal is created on submission
@@ -1041,19 +1580,21 @@ export function submitVote(pI: i32, vote: string): void {
 
 export function processProposal(pI: i32): bool {
 
-  let proposal = _vPP(pI)
-  
-  //let proposalId = proposalQueue[pI]
-  //let proposal = proposals[proposalId]
+  let proposalIndex = getProposalIndex(pI)
+  let proposal = _vPP(proposalIndex)
   
   assert(!proposal.f[4] && !proposal.f[5], ERR_STANDARD_PROPOSAL)
 
-  let f = proposal.f // [sed, processed, didPass, cancelled, whitelist, guildkick, member]
+  let f = proposal.f // [sponsored, processed, didPass, cancelled, whitelist, guildkick, member]
   f[1] = true; //processed
 
   proposal.f = f
-  //proposals.replace(pI, proposal)
-  proposals[pI] = proposal
+  proposals[proposalIndex] = proposal
+
+  let index = getProposalEventsIndex(pI)
+  let proposalEvent = submitProposalEvents[index]
+  proposalEvent.f = f
+  submitProposalEvents[index] = proposalEvent
 
   let didPass = _didPass(proposal)
 
@@ -1074,25 +1615,30 @@ export function processProposal(pI: i32): bool {
     didPass = false
   }
   if(didPass){
-    proposalPassed(pI, proposal)
+    proposalPassed(proposalIndex, proposal)
   } else {
-    proposalFailed(pI, proposal)
+    proposalFailed(proposalIndex, proposal)
   }
-  getUsedGas()
-  getUsedStorage()
+
+ 
+  _returnDeposit(proposal.s)
+
   return didPass
 }
 
-  export function proposalPassed(proposalId: i32, proposal: Proposal): void {
-
-   // let proposalId = proposalQueue[pI]
-   // let proposal = proposals[proposalId]
-
-    let f = proposal.f // [sed, processed, didPass, cancelled, whitelist, guildkick]
+  export function proposalPassed(proposalIndex: i32, proposal: Proposal): void {
+    logging.log('proposal passed')
+  
+    let f = proposal.f // [sponsored, processed, didPass, cancelled, whitelist, guildkick]
     f[2] = true; //didPass
     proposal.f = f
-    //proposals.replace(proposalId, proposal)
-    proposals[proposalId] = proposal
+    
+    proposals[proposalIndex] = proposal
+
+    let index = getProposalEventsIndex(proposal.pI)
+    let proposalEvent = submitProposalEvents[index]
+    proposalEvent.f = f
+    submitProposalEvents[index] = proposalEvent
 
     if(members.get(proposal.a)!=null) {
       // if the a is already a member, add to their existing shares and loot
@@ -1143,36 +1689,32 @@ export function processProposal(pI: i32): bool {
       totalGuildBankTokens = totalGuildBankTokens + 1
     }
 
+    //move tribute from escrow to bank
     _unsafeInternalTransfer(ESCROW, GUILD, proposal.tT, proposal.tO)
+
+    //give applicant the funds requested from the guild bank
     _unsafeInternalTransfer(GUILD, proposal.a, proposal.pT, proposal.pR)
 
     // if the proposal spends 100% of guild bank balance for a token, decrement total guild bank tokens
     if(getUserTokenBalance(GUILD, proposal.pT) == 0 && proposal.pR > 0) {
       totalGuildBankTokens = totalGuildBankTokens -1
     }
-    processProposalEvent(proposalId, true)
+    processProposalEvent(proposalIndex, true)
   }
 
-export function proposalFailed(proposalId: i32, proposal: Proposal): void {
-
-  //let proposalId = proposalQueue[pI]
-  //let proposal = proposals[proposalId]
-   
-  //return all tokens to the p (not the a, because funds come from the p)
+export function proposalFailed(proposalIndex: i32, proposal: Proposal): void {
+  logging.log('proposal failed')
+  //return all tokens to the proposer (not the applicant, because funds come from the proposer)
   _unsafeInternalTransfer(ESCROW, proposal.p, proposal.tT, proposal.tO)
-  
-  _returnDeposit(proposal.s)
 
-  processProposalEvent(proposalId, false)
+  processProposalEvent(proposalIndex, false)
 }
 
 
 export function processWhitelistProposal(pI: i32): void {
 
-  _vPP(pI)
-
-  let proposalId = proposalQueue[pI]
-  let proposal = proposals[proposalId]
+  let proposalIndex = getProposalIndex(pI)
+  let proposal = _vPP(proposalIndex)
 
   assert(proposal.f[4], ERR_WHITELIST_PROPOSAL)
 
@@ -1180,7 +1722,12 @@ export function processWhitelistProposal(pI: i32): void {
   f[1] = true; //processed
   proposal.f = f
   //proposals.replace(proposalId,proposal)
-  proposals[proposalId] = proposal
+  proposals[proposalIndex] = proposal
+
+  let index = getProposalEventsIndex(pI)
+  let proposalEvent = submitProposalEvents[index]
+  proposalEvent.f = f
+  submitProposalEvents[index] = proposalEvent
 
   let didPass = _didPass(proposal)
 
@@ -1193,7 +1740,12 @@ export function processWhitelistProposal(pI: i32): void {
     f[2] = true; //didPass
     proposal.f = f
     //proposals.replace(proposalId, proposal)
-    proposals[proposalId] = proposal
+    proposals[proposalIndex] = proposal
+
+    let index = getProposalEventsIndex(pI)
+    let proposalEvent = submitProposalEvents[index]
+    proposalEvent.f = f
+    submitProposalEvents[index] = proposalEvent
 
     tokenWhiteList.set(proposal.tT, true)
     approvedTokens.push(proposal.tT)
@@ -1201,50 +1753,62 @@ export function processWhitelistProposal(pI: i32): void {
 
   proposedToWhiteList.set(proposal.tT, false)
 
+  let thisProposalDeposit = storage.getSome<i32>('proposalDeposit')
+  logging.log('this proposal deposit ' + thisProposalDeposit.toString())
+  let thisProcessingReward = storage.getSome<i32>('processingReward')
+  logging.log('this Processing Reward ' + thisProcessingReward.toString())
+
   _returnDeposit(proposal.s)
 
-  processWhiteListProposalEvent(pI, proposalId, didPass)
+  processWhiteListProposalEvent(pI, proposalIndex, didPass)
   
 }
 
 
 export function processGuildKickProposal(pI: i32): void {
 
-  _vPP(pI)
-
-  let proposalId = proposalQueue[pI]
-  let proposal = proposals[proposalId]
+  let proposalIndex = getProposalIndex(pI)
+  let proposal = _vPP(proposalIndex)
 
   assert(proposal.f[5], ERR_GUILD_PROPOSAL)
 
   let f = proposal.f // [sed, processed, didPass, cancelled, whitelist, guildkick]
-    f[1] = true; //processed
-   
-    proposal.f = f
-    //proposals.replace(proposalId, proposal)
-    proposals[proposalId] = proposal
+  f[1] = true; //processed
+  
+  proposal.f = f
+  //proposals.replace(proposalId, proposal)
+  proposals[proposalIndex] = proposal
+
+  let index = getProposalEventsIndex(pI)
+  let proposalEvent = submitProposalEvents[index]
+  proposalEvent.f = f
+  submitProposalEvents[index] = proposalEvent
 
   let didPass = _didPass(proposal)
 
   if(didPass) {
+    logging.log('proposal passed')
     let f = proposal.f // [sed, processed, didPass, cancelled, whitelist, guildkick]
     f[2] = true; //didPass
 
     proposal.f = f
-   // proposals.replace(proposalId, proposal)
-    proposals[proposalId] = proposal
+    proposals[proposalIndex] = proposal
 
+    let index = getProposalEventsIndex(pI)
+    let proposalEvent = submitProposalEvents[index]
+    proposalEvent.f = f
+    submitProposalEvents[index] = proposalEvent
 
     let member = members.getSome(proposal.a)
 
     let updateMember = new Member(
-    member.delegateKey,
-    0, // revoke all shares
-    member.loot + member.shares, //transfer shares to loot
-    true,
-    member.highestIndexYesVote,
-    proposalId
-    )
+      member.delegateKey,
+      0, // revoke all shares
+      member.loot + member.shares, //transfer shares to loot
+      true,
+      member.highestIndexYesVote,
+      proposalIndex
+      )
 
     members.set(proposal.a, updateMember)
      
@@ -1256,6 +1820,8 @@ export function processGuildKickProposal(pI: i32): void {
   }
 
   proposedToKick.set(proposal.a, false)
+
+  
 
   _returnDeposit(proposal.s)
 

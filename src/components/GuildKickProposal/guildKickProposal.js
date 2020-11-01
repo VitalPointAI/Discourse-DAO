@@ -55,7 +55,10 @@ export default function GuildKickProposal(props) {
 
   const classes = useStyles()
   const { register, handleSubmit, watch, errors } = useForm()
-  const { handleGuildKickClickState, accountId } = props
+  const { 
+    handleGuildKickClickState, 
+    handleProposalEventChange,
+    accountId } = props
 
   const handleClickOpen = () => {
     setOpen(true)
@@ -66,25 +69,20 @@ export default function GuildKickProposal(props) {
     setOpen(false)
   };
 
-  async function generateId() {
-    let buf = Math.random([0, 999999999]);
-    let b64 = btoa(buf);
-    //setProposalId(b64.toString())
-  }
-
   const onSubmit = async (values) => {
     event.preventDefault()
     console.log(errors)
     setFinished(false)
-    const { proposalIdentifier, memberToKick } = values
+    const { memberToKick } = values
     console.log('values', values)
  
     let finished = await window.contract.submitGuildKickProposal({
                     memberToKick: memberToKick,
-                    proposalIdentifier: proposalIdentifier
                     }, process.env.DEFAULT_GAS_VALUE)
+
+    let changed = await handleProposalEventChange()
     
-    if(finished) {
+    if(finished && changed) {
       setFinished(true)
       setOpen(false)
       handleGuildKickClickState(false)
@@ -103,23 +101,8 @@ export default function GuildKickProposal(props) {
           </DialogContentText>)}
             <div>
           <TextField
-            autoFocus
             margin="dense"
-            id="guildkick-proposal-identifier"
-            variant="outlined"
-            name="proposalIdentifier"
-            label="Proposal Identifier"
-            placeholder="e.g. GCCX564"
-            inputRef={register({
-                required: true, 
-                
-            })}
-            />
-            {errors.proposalIdentifier && <p style={{color: 'red'}}>You must provide a proposal identifier.</p>}
-          </div><div>
-          <TextField
-            margin="dense"
-            id="member-proposal"
+            id="guildkick-proposal"
             variant="outlined"
             name="memberToKick"
             label="Member to Kick Out"
@@ -133,7 +116,7 @@ export default function GuildKickProposal(props) {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleSubmit(onSubmit)} color="primary" type="submit">
-            Submit Proposal
+            Submit Guild Kick Proposal
           </Button>
           <Button onClick={handleClose} color="primary">
             Cancel

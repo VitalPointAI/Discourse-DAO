@@ -1,5 +1,6 @@
 import { connect, Contract, keyStores, WalletConnection, transactions, utils, WalletAccount, Account, providers } from 'near-api-js'
 import getConfig from './config'
+import { initiateDB, initiateAppDB } from './threadsDB'
 
 const BN = require('bn.js')
 const nearConfig = getConfig(process.env.NODE_ENV || 'development')
@@ -38,13 +39,22 @@ export async function initContract() {
       'getEscrowTokenBalances',
       'getInitSettings',
       'getDepositToken',
-      'isVotingPeriod',
-      'isGracePeriod',
       'getMemberStatus',
       'getProposalVotes',
       'getMemberInfo',
       'getUserTokenBalanceObject',
-      'getProposalDeposit'
+      'getProposalDeposit',
+      'getTributeToken',
+      'getTributeOffer',
+      'getProcessingReward',
+      'getPeriodDuration',
+      'getMemberShares',
+      'getMemberLoot',
+      'getAppIdentity',
+      'getIdentity',
+      'getCommentLength',
+      'getAllComments',
+      'getProposalComments'
     ],
     // Change methods can modify the state. But you don't receive the returned value when called.
     changeMethods: [
@@ -63,10 +73,16 @@ export async function initContract() {
       'processWhitelistProposal',
       'processGuildKickProposal',
       'proposalPassed',
-      'proposalFailed'
+      'proposalFailed',
+      'ragequit',
+      'registerApp',
+      'setAppIdentity',
+      'setIdentity',
+      'registerMember',
+      'addComment'
     ],
   })
-
+  
 }
 
 export function logout() {
