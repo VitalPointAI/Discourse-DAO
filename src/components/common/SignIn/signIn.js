@@ -111,7 +111,7 @@ const classes = useStyles()
                     by asking me for it in our <a href="https://discord.gg/3AKNUdU3cz">Discord Server.</a>  Because it's running on Testnet, play with it, but it's still in development and anything in there can disappear/change at any time.</Typography>
                     <Typography variant="h4" color="textPrimary" style={{textAlign: 'left', marginBottom: 20}}>Take a Quick Video WalkThrough</Typography>
                     <Typography variant="body1" color="textPrimary" component="p" style={{textAlign: 'left', marginBottom: 20}}>
-                    I didn't speed anything up in this video.  It's showing realtime interaction with the NEAR testnet.  The voting, grace periods are set to approx 1 min (so you may want to fast forward through those parts...)</Typography>
+                    I didn't speed anything up in this video.  It's showing realtime interaction with the NEAR testnet.  The voting, grace periods are set to approx 1 min (so you may want to fast forward through those parts...)<div style={{float:'left', marginRight: '10px'}}><iframe width="360" height="115" src="https://www.youtube.com/embed/I-gDJAHtDm0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div></Typography>
                    
                     </CardContent>
                   </Card>
