@@ -13,7 +13,7 @@
     "deploy:contract": "near deploy",
     "deploy:pages": "gh-pages -d dist/",
     "deploy": "npm run build && npm run deploy:contract && npm run deploy:pages",
-    "start": "node dist/index.html",
+    "start": "parcel dist/index.html",
     "startup": "npm run build:contract && echo The app is starting! It will automatically open in your browser when ready && env-cmd -f ./.env parcel src/index.html --open",
     "dev": "nodemon --watch assembly -e ts --exec \"npm run start\"",
     "test": "asp --nologo && npm run build:contract && jest test --runInBand"
