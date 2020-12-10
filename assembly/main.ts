@@ -1,6 +1,6 @@
   
 
-import { Context, storage, logging, env, u128, ContractPromise, PersistentVector, PersistentMap } from "near-sdk-as"
+import { Context, storage, logging, env, u128, ContractPromise, PersistentVector, PersistentMap, ContractPromiseBatch } from "near-sdk-as"
 import { 
   AccountId, 
   PeriodDuration, 
@@ -120,7 +120,7 @@ import {
   withdrawlEvent,
 } from './dao-events'
 
-// Textile App Database Structures
+// App Database Structures
 // store app identities
 let appIdentity = new PersistentMap<string, AppIdentity>("ai");
 let apps = new PersistentVector<string>("a");
@@ -140,7 +140,7 @@ const MAX_DILUTION_BOUND: i32 = 10**8 // maximum dilution bound
 const MAX_NUMBER_OF_SHARES_AND_LOOT: i32 = 10**8 // maximum number of shares that can be minted
 const MAX_TOKEN_WHITELIST_COUNT: i32 = 400 // maximum number of whitelisted tokens
 const MAX_TOKEN_GUILDBANK_COUNT: i32 = 200 // maximum number of tokens with non-zero balance in guildbank
-const MOLOCH_CONTRACT_ACCOUNT: AccountId = 'dao1.vitalpointai.testnet'; // DAO accountId
+const MOLOCH_CONTRACT_ACCOUNT: AccountId = 'discourse-dao.vitalpointai.testnet'; // DAO accountId
 
 // *******************
 // INTERNAL ACCOUNTING
@@ -165,10 +165,10 @@ const ESCROW: AccountId = 'escrow.vitalpointai.testnet'
 const TOTAL: AccountId = 'total.vitalpointai.testnet'
 
 // ********************
-// Textile App Setup
+// App Setup
 // ********************
 
-// Create new Identity for App ThreadsDB
+// Create new Identity for App
 export function setAppData(app: App): void {
   let _appNumber = getAppData(app.appNumber);
   logging.log('setting member data')
@@ -437,101 +437,6 @@ export function getDaoMemberData(memberId: string): Array<string> {
   return memberData;
 }
 
-// *********************
-// COMMENT FUNCTIONALITY
-// *********************
-
-// Methods for Individual Comments
-export function getComment(commentId: string): Comment {
-  let comment = indivComments.getSome(commentId);
-  return comment;
-}
-
-export function getCommentLength(): i32 {
-  return comments.length
-}
-
-export function setComment(comment: Comment): void {
-  indivComments.set(comment.commentId, comment);
-}
-
-export function addComment(
-  commentId: string,
-  commentParent: string,
-  published: string
-): Comment {
-  logging.log("adding comment");
-  return _addComment(
-    commentId,
-    commentParent,
-    published
-  );
-}
-
-function _addComment(
-  commentId: string,
-  commentParent: string,
-  published: string
-): Comment {
-  logging.log("start adding new comment");
-  let comment = new Comment();
-  comment.commentId = commentId;
-  comment.commentAuthor = Context.sender;
-  comment.commentParent = commentParent;
-  comment.published = published;
-  let present = false;
-  let commentsLength = comments.length
-  let i = 0
-  while(i < commentsLength) {
-    if (comments[i].commentId == commentId) {
-      present = true;
-    }
-    i++
-  }
-  if (!present) {
-    comments.push(comment);
-  }
-  logging.log("added comment");
-  setComment(comment)
-  logging.log("added indiv comment")
-  return comment;
-}
-
-
-export function deleteComment(commentId: string): void {
-  indivComments.delete(commentId);
-}
-
-/**
- * returns all Comments
- */
-export function getAllComments(): Array<Comment> {
-  let _commentList = new Array<Comment>();
-  let commentsLength = comments.length;
-  let i = 0
-  while (i < commentsLength) {
-    _commentList.push(comments[i])
-    i++
-  }
-  return _commentList;
-}
-
-/**
- * returns specific proposal Comments
- */
-export function getProposalComments(proposalId: string): Array<Comment> {
-  let _commentList = new Array<Comment>();
-  let commentsLength = comments.length;
-  let i = 0
-  while (i < commentsLength) {
-    if(comments[i].commentParent == proposalId){
-    _commentList.push(comments[i])
-    }
-    i++
-  }
-  return _commentList;
-}
-
 // ********************
 // MODIFIERS
 // ********************
@@ -617,19 +522,25 @@ export function init(
   assert(_proposalDeposit >= _processingReward, ERR_PROPOSAL_DEPOSIT)
   assert(_minSharePrice > 0, ERR_MUSTBE_GREATERTHAN_ZERO)
 
-  depositToken = _approvedTokens[0]
-  
+ //depositToken = _approvedTokens[0]
+depositToken = 'NEAR'
 
-  storage.set<string>('depositToken', depositToken)
+ // storage.set<string>('depositToken', depositToken)
+ storage.set<string>('depositToken', depositToken)
 
   for (let i: i32 = 0; i < _approvedTokens.length; i++) {
-    assert(env.isValidAccountID(_approvedTokens[i]), ERR_INVALID_ACCOUNT_ID)
-    if(tokenWhiteList.contains(_approvedTokens[i])) {
-      assert(!tokenWhiteList.getSome(_approvedTokens[i]), ERR_DUPLICATE_TOKEN)
+    if (i == 0) {
+      tokenWhiteList.set(depositToken, true)
+      approvedTokens.push(depositToken)
     } else {
-      tokenWhiteList.set(_approvedTokens[i], true)
+      assert(env.isValidAccountID(_approvedTokens[i]), ERR_INVALID_ACCOUNT_ID)
+      if(tokenWhiteList.contains(_approvedTokens[i])) {
+        assert(!tokenWhiteList.getSome(_approvedTokens[i]), ERR_DUPLICATE_TOKEN)
+      } else {
+        tokenWhiteList.set(_approvedTokens[i], true)
+      }   
+      approvedTokens.push(_approvedTokens[i])
     }
-    approvedTokens.push(_approvedTokens[i])
   }
   
   //set Summoner
@@ -1327,9 +1238,19 @@ export function submitProposal (
 
 function _sT(tO: i32, tT: AccountId): void {
   // collect tribute from p and store it in the Moloch until the proposal is processed
-  let ftAPI = new tokenAPI()
-  ftAPI.incAllowance(new u128(tO), tT)
-  ftAPI.transferFrom(Context.sender, MOLOCH_CONTRACT_ACCOUNT, new u128(tO), tT)
+  
+  // near transfers
+  if(tT == 'NEAR') {
+    logging.log('starting NEAR transfer')
+    let promise = ContractPromiseBatch.create(MOLOCH_CONTRACT_ACCOUNT)
+      .transfer(u128.from(tO))
+    logging.log('finished NEAR transfer')
+  } else {
+    // other token transfers
+    let ftAPI = new tokenAPI()
+    ftAPI.incAllowance(new u128(tO), tT)
+    ftAPI.transferFrom(Context.sender, MOLOCH_CONTRACT_ACCOUNT, new u128(tO), tT)
+  }
 }
 
 

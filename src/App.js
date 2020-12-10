@@ -520,18 +520,6 @@ export default function App() {
           console.log('escrow balances exist', res)
         })
 
-        async function fetchAllComments() {
-          let allComments = await window.contract.getAllComments()
-          console.log('all comments', allComments)
-              setProposalComments(allComments)
-        }
-
-        fetchAllComments()
-        .then((res) => {
-          console.log('comments exist', res)
-        })
-
-
         async function fetchGuildBalances() {
           try {
            let balance = await window.contract.getGuildTokenBalances()

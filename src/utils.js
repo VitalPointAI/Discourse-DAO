@@ -52,9 +52,6 @@ export async function initContract() {
       'getMemberLoot',
       'getAppIdentity',
       'getIdentity',
-      'getCommentLength',
-      'getAllComments',
-      'getProposalComments'
     ],
     // Change methods can modify the state. But you don't receive the returned value when called.
     changeMethods: [
@@ -78,8 +75,7 @@ export async function initContract() {
       'registerApp',
       'setAppIdentity',
       'setIdentity',
-      'registerMember',
-      'addComment'
+      'registerMember'
     ],
   })
   
